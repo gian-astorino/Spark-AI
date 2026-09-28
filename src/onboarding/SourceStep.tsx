@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import {
   Button,
+  ButtonGroup,
+  ButtonGroupText,
   Card,
   CardContent,
   CardDescription,
@@ -14,10 +16,6 @@ import {
   FieldTitle,
   Inline,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   ItemMedia,
   RadioGroup,
   RadioGroupItem,
@@ -54,12 +52,53 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
   const [website, setWebsite] = useState('')
   const [handle, setHandle] = useState('')
 
-  const target = source === 'website' ? website.trim() : source === 'instagram' ? handle.trim() : ''
+  const target =
+    source === 'website' && website.trim()
+      ? `https://${website.trim()}`
+      : source === 'instagram'
+        ? handle.trim()
+        : ''
   const canContinue = source === 'none' || target.length > 0
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
     if (canContinue) onContinue({ source, target })
+  }
+
+  function detail(value: Source) {
+    if (value !== source) return null
+    if (value === 'website') {
+      return (
+        <ButtonGroup aria-label="Website address">
+          <ButtonGroupText>https://</ButtonGroupText>
+          <Input
+            aria-label="Website address"
+            inputMode="url"
+            autoComplete="url"
+            placeholder="yourbusiness.com"
+            value={website}
+            // Pasting a full URL keeps only what comes after the fixed prefix.
+            onChange={(event) => setWebsite(event.target.value.replace(/^\s*https?:\/\//i, ''))}
+            autoFocus
+          />
+        </ButtonGroup>
+      )
+    }
+    if (value === 'instagram') {
+      return (
+        <ButtonGroup aria-label="Instagram profile">
+          <ButtonGroupText>@</ButtonGroupText>
+          <Input
+            aria-label="Instagram profile"
+            placeholder="yourbusiness"
+            value={handle}
+            onChange={(event) => setHandle(event.target.value.replace(/^\s*@/, ''))}
+            autoFocus
+          />
+        </ButtonGroup>
+      )
+    }
+    return null
   }
 
   return (
@@ -72,59 +111,25 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Stack gap={4}>
-            <RadioGroup value={source} onValueChange={(value) => setSource(value as Source)}>
-              <Stack gap={3}>
-                {OPTIONS.map((option) => (
-                  <FieldLabel key={option.value} htmlFor={`source-${option.value}`}>
-                    <Field orientation="horizontal">
-                      <ItemMedia variant="icon">
-                        <Icon icon={option.icon} />
-                      </ItemMedia>
-                      <FieldContent>
-                        <FieldTitle>{option.title}</FieldTitle>
-                        <FieldDescription>{option.description}</FieldDescription>
-                      </FieldContent>
-                      <RadioGroupItem value={option.value} id={`source-${option.value}`} />
-                    </Field>
-                  </FieldLabel>
-                ))}
-              </Stack>
-            </RadioGroup>
-
-            {source === 'website' && (
-              <Field>
-                <FieldLabel htmlFor="website-url">Website address</FieldLabel>
-                <Input
-                  id="website-url"
-                  type="url"
-                  inputMode="url"
-                  placeholder="https://yourbusiness.com"
-                  value={website}
-                  onChange={(event) => setWebsite(event.target.value)}
-                  autoFocus
-                />
-              </Field>
-            )}
-
-            {source === 'instagram' && (
-              <Field>
-                <FieldLabel htmlFor="instagram-handle">Instagram profile</FieldLabel>
-                <InputGroup>
-                  <InputGroupAddon>
-                    <InputGroupText>@</InputGroupText>
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="instagram-handle"
-                    placeholder="yourbusiness"
-                    value={handle}
-                    onChange={(event) => setHandle(event.target.value.replace(/^@/, ''))}
-                    autoFocus
-                  />
-                </InputGroup>
-              </Field>
-            )}
-          </Stack>
+          <RadioGroup value={source} onValueChange={(value) => setSource(value as Source)}>
+            <Stack gap={3}>
+              {OPTIONS.map((option) => (
+                <FieldLabel key={option.value} htmlFor={`source-${option.value}`}>
+                  <Field orientation="horizontal">
+                    <ItemMedia variant="icon">
+                      <Icon icon={option.icon} />
+                    </ItemMedia>
+                    <FieldContent>
+                      <FieldTitle>{option.title}</FieldTitle>
+                      <FieldDescription>{option.description}</FieldDescription>
+                      {detail(option.value)}
+                    </FieldContent>
+                    <RadioGroupItem value={option.value} id={`source-${option.value}`} />
+                  </Field>
+                </FieldLabel>
+              ))}
+            </Stack>
+          </RadioGroup>
         </CardContent>
         <CardFooter>
           <Inline justify="end">
