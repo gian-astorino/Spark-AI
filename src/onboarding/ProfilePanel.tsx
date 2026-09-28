@@ -15,10 +15,9 @@ import {
 import {
   BookOpen01Icon,
   Calendar05Icon,
-  CheckmarkCircle02Icon,
+  Edit03Icon,
   Location06Icon,
   PaintBoardIcon,
-  PencilEdit02Icon,
   PlusSignIcon,
   Store04Icon,
 } from '@hugeicons/core-free-icons'
@@ -91,9 +90,10 @@ export function ProfilePanel({
               <Inline gap={2} align="center">
                 <Icon icon={SECTION_ICONS[section]} />
                 <ItemTitle>{SECTION_TITLES[section]}</ItemTitle>
+                {state === 'ready' && <span className="badge-imported">Importato</span>}
               </Inline>
               <Inline gap={1} align="center">
-                {state === 'ready' ? <Icon icon={CheckmarkCircle02Icon} /> : state === 'loading' ? <Spinner /> : null}
+                {state === 'loading' && <Spinner />}
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -101,7 +101,7 @@ export function ProfilePanel({
                   title="Modifica"
                   onClick={() => onEdit(SECTION_EDIT[section](profile))}
                 >
-                  <Icon icon={section === 'catalog' ? PlusSignIcon : PencilEdit02Icon} />
+                  <Icon icon={section === 'catalog' ? PlusSignIcon : Edit03Icon} />
                 </Button>
               </Inline>
             </div>

@@ -421,3 +421,17 @@
   font-weight: 500;
   color: var(--foreground);
 }
+
+/* A section filled in: the design system's Badge has no success variant yet. */
+.badge-imported {
+  display: inline-flex;
+  align-items: center;
+  height: 1.25rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--success) 14%, transparent);
+  color: var(--success);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
