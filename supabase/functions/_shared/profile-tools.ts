@@ -436,8 +436,10 @@ export async function runTool(
     case 'set_logo_from_url': {
       const url = String(input.url)
       if (!/^https:\/\//.test(url)) return 'Not saved: the address must start with https://'
-      // Facebook serves its preview images only to link-preview crawlers.
-      const response = await fetch(url, { headers: { 'User-Agent': PREVIEW_CRAWLER } })
+      // Facebook serves its preview images only to link-preview crawlers;
+      // other hosts may refuse that crawler, so a plain request is the fallback.
+      let response = await fetch(url, { headers: { 'User-Agent': PREVIEW_CRAWLER } })
+      if (!response.ok || !(response.headers.get('content-type') ?? '').startsWith('image/')) response = await fetch(url)
       const type = response.headers.get('content-type') ?? ''
       if (!response.ok || !type.startsWith('image/')) return `Not saved: that address is not an image (${response.status} ${type})`
       const image = await response.arrayBuffer()

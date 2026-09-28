@@ -69,3 +69,27 @@ export async function previewImage(url: string): Promise<string | undefined> {
     return undefined
   }
 }
+
+export interface ImageResult {
+  imageUrl: string
+  /** The page the image comes from. */
+  pageUrl: string
+  title: string
+  width?: number
+  height?: number
+}
+
+/** An image search, Google Images style, through Firecrawl's search. */
+export async function searchImages(query: string, limit = 8): Promise<ImageResult[]> {
+  const body = await call('/search', {
+    method: 'POST',
+    body: JSON.stringify({ query, limit, sources: [{ type: 'images' }], country: 'IT' }),
+  })
+  return (body.data?.images ?? []).map((image: Record<string, unknown>) => ({
+    imageUrl: String(image.imageUrl ?? ''),
+    pageUrl: String(image.url ?? ''),
+    title: String(image.title ?? ''),
+    width: typeof image.imageWidth === 'number' ? image.imageWidth : undefined,
+    height: typeof image.imageHeight === 'number' ? image.imageHeight : undefined,
+  })).filter((image: ImageResult) => image.imageUrl.startsWith('https://'))
+}
