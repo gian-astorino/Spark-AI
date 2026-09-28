@@ -126,6 +126,7 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-height: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl-spark);
   background: var(--background);
   overflow: hidden;
@@ -150,6 +151,7 @@
 .profile-panel {
   display: none;
   overflow-y: auto;
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl-spark);
   background: var(--background);
 }
