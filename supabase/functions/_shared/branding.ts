@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Branding } from './firecrawl.ts'
+import { regenerateLogo } from './logo.ts'
 
-// Branding from a business's own home page: logo, brand colours, fonts.
+// Branding from a business's own home page: logo and fonts. The brand
+// colours are then read from the logo (see logo.ts).
 // Used by the import (from the link it starts with) and by the research
 // (from the official site it finds).
 
@@ -15,14 +17,6 @@ export function isPlatform(url: string) {
   } catch {
     return false
   }
-}
-
-// Firecrawl names colours by their role on the page. Only the brand ones are
-// kept: background, text and link colours say little about the brand.
-const BRAND_COLORS: Record<string, string> = {
-  primary: 'Primary',
-  secondary: 'Secondary',
-  accent: 'Accent',
 }
 
 // Generic families and web-safe fallbacks are not a brand choice.
@@ -61,28 +55,19 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
   const logo = branding.logo ? await storeLogo(db, businessId, branding.logo) : null
   await db.from('brand_profiles').upsert({
     business_id: businessId,
-    logo_path: logo,
-    // Inline logos arrive as data: URLs, often tens of KB: the copy in storage is enough.
-    logo_source_url: branding.logo?.startsWith('http') ? branding.logo : null,
+    // A site without a readable logo leaves any logo already in the profile.
+    ...(logo
+      ? {
+          logo_path: logo,
+          // Inline logos arrive as data: URLs, often tens of KB: the copy in storage is enough.
+          logo_source_url: branding.logo?.startsWith('http') ? branding.logo : null,
+        }
+      : {}),
     fonts: brandFonts(branding),
     source: 'import',
   })
-
-  await db.from('brand_colors').delete().eq('business_id', businessId).eq('source', 'import')
-  const colors = Object.entries(branding.colors ?? {}).filter(
-    ([role, hex]) => role in BRAND_COLORS && /^#[0-9a-f]{6}$/i.test(hex),
-  )
-  if (colors.length > 0) {
-    await db.from('brand_colors').insert(
-      colors.map(([role, hex], position) => ({
-        business_id: businessId,
-        name: BRAND_COLORS[role],
-        hex: hex.toUpperCase(),
-        position,
-        source: 'import',
-      })),
-    )
-  }
+  // The brand colours come from the logo, not from the site's CSS.
+  if (logo) EdgeRuntime.waitUntil(regenerateLogo(db, businessId))
 }
 
 /** Copies the logo into our own storage: the site may change or disappear. */

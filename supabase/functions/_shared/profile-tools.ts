@@ -1,6 +1,7 @@
 import type OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PREVIEW_CRAWLER } from './firecrawl.ts'
+import { regenerateLogo } from './logo.ts'
 import { addressKey, key } from './matching.ts'
 
 // The hands of both models, the chat agent and the import research: every
@@ -150,7 +151,8 @@ export const DEFS: ToolDef[] = [
   },
   {
     name: 'set_brand_colors',
-    description: 'Replace the brand colours: Primary, Secondary and Accent. Only after the owner has agreed to them.',
+    description:
+      'Replace the brand colours: Primary, Secondary and Accent. Normally they are read from the logo automatically: use this only when there is no logo, or the owner asks to change them, and after they agree.',
     input_schema: {
       type: 'object',
       properties: {
@@ -244,6 +246,9 @@ export const TOOLS: OpenAI.Responses.FunctionTool[] = DEFS.map((tool) => ({
   parameters: tool.input_schema,
   strict: true,
 }))
+
+const LOGO_SAVED =
+  'Logo saved. A square high-resolution version is being made in the background, and the brand colours will be taken from it.'
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
@@ -386,7 +391,8 @@ export async function runTool(
       const logoPath = `${businessId}/logo.${extension}`
       await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
       await check(db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, source: ctx.source }))
-      return 'Logo saved.'
+      EdgeRuntime.waitUntil(regenerateLogo(db, businessId))
+      return LOGO_SAVED
     }
 
     case 'view_logo': {
@@ -442,7 +448,8 @@ export async function runTool(
       await check(
         db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, logo_source_url: url, source: ctx.source }),
       )
-      return 'Logo saved.'
+      EdgeRuntime.waitUntil(regenerateLogo(db, businessId))
+      return LOGO_SAVED
     }
 
     case 'add_photos': {
