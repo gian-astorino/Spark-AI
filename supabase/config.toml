@@ -414,7 +414,7 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
-# Called only by the other functions, with the service role key, which it
-# checks itself: the platform's JWT check is off so any key format works.
+# Called only by the other functions, with a token of its own (x-logo-token,
+# secret LOGO_TRIGGER_TOKEN): the platform's JWT check is off.
 [functions.logo]
 verify_jwt = false

@@ -1,25 +1,20 @@
-import OpenAI, { toFile } from 'openai'
+import OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// Every logo that enters the profile is redrawn as a square, high-resolution
-// version of itself, and the brand colours are read from it: a site's CSS
-// colours say less about the brand than its mark does.
+// Every logo that enters the profile is made square and high resolution, and
+// the brand colours are read from it: a site's CSS colours say less about the
+// brand than its mark does.
 //
-// Raster logos are redrawn by the image model, told to change nothing but
-// the canvas. SVG logos are already sharp at any size: they are only centred
-// on a square canvas, and their colours are read straight from the markup.
+// No generative model touches the logo: it would redraw it, and a redrawn
+// logo is a different logo. Raster logos are resampled (bicubic) onto a
+// transparent square; SVG logos, already sharp at any size, are only centred
+// on a square canvas.
 
-const IMAGE_MODEL = 'gpt-image-2'
 const VISION_MODEL = 'gpt-5.5'
+const LOGO_SIZE = 1024
+const LOGO_PADDING = 0.1
 
 const openai = new OpenAI() // OPENAI_API_KEY from the function's secrets
-
-const REDRAW = [
-  'Recreate this exact logo as a clean, high-resolution square image.',
-  'Keep the design identical: same shapes, same lettering and text, same colours, same proportions.',
-  'Do not add, remove, restyle or reinterpret anything.',
-  'Centre it on a square canvas with even padding around it, on a transparent background.',
-].join(' ')
 
 /**
  * Asks the `logo` function to refresh the business's logo. The work runs
@@ -29,18 +24,17 @@ export function requestLogoRefresh(businessId: string) {
   EdgeRuntime.waitUntil(
     fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/logo`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json',
-      },
+      // A token of its own: the gateway's handling of API keys in Authorization
+      // varies with the key format, a custom header is never touched.
+      headers: { 'x-logo-token': Deno.env.get('LOGO_TRIGGER_TOKEN') ?? '', 'Content-Type': 'application/json' },
       body: JSON.stringify({ business_id: businessId }),
     }).catch((failure) => console.error('Logo refresh request failed', failure)),
   )
 }
 
 /**
- * The colours first, from the logo as it is: fast, and they arrive even if
- * the redraw fails. Then the square high-resolution version. The original is
+ * The colours first, from the logo as it is, so they arrive even if the
+ * square version fails. Then the square high-resolution version. The original is
  * kept next to it; any failure is written to brand_profiles.logo_error.
  */
 export async function refreshLogo(db: SupabaseClient, businessId: string) {
@@ -66,7 +60,7 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
       failures.push(`colours: ${String(failure)}`)
     }
 
-    // 2. The square, high-resolution logo.
+    // 2. The square, high-resolution logo, identical to the original.
     try {
       const logoPath = isSvg ? await squareSvgLogo(db, businessId, await file.text()) : await redraw(db, businessId, file, extension)
       await db.from('brand_profiles').update({ logo_path: logoPath }).eq('business_id', businessId)
@@ -104,27 +98,130 @@ async function squareSvgLogo(db: SupabaseClient, businessId: string, svg: string
   return path
 }
 
-/**
- * The image model redraws the logo. Transparent background and high input
- * fidelity are asked for; a model that refuses either gets the plain request.
- */
-async function redraw(db: SupabaseClient, businessId: string, file: Blob, extension: string) {
-  const image = await toFile(file, `logo.${extension}`, { type: file.type })
-  const base = { model: IMAGE_MODEL, image, prompt: REDRAW, size: '1024x1024', quality: 'high', output_format: 'png' } as const
-  let result: OpenAI.Images.ImagesResponse
-  try {
-    result = await openai.images.edit({ ...base, background: 'transparent', input_fidelity: 'high' })
-  } catch (failure) {
-    if (!(failure instanceof OpenAI.BadRequestError)) throw failure
-    console.warn('Redraw without transparent background / input fidelity:', failure.message)
-    result = await openai.images.edit({ ...base, image: await toFile(file, `logo.${extension}`, { type: file.type }) })
-  }
-  const b64 = result.data?.[0]?.b64_json
-  if (!b64) throw new Error('The image model returned no image')
+/** The raster logo, resampled onto a transparent square. */
+async function redraw(db: SupabaseClient, businessId: string, file: Blob, _extension: string) {
+  const png = await squareLogo(new Uint8Array(await file.arrayBuffer()))
   const path = `${businessId}/logo-hd.png`
-  const png = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0))
   await db.storage.from('logos').upload(path, png, { contentType: 'image/png', upsert: true })
   return path
+}
+
+/** Catmull-Rom weights: sharp enough for logos, without visible ringing. */
+function cubic(t: number) {
+  const a = Math.abs(t)
+  if (a < 1) return 1.5 * a ** 3 - 2.5 * a ** 2 + 1
+  if (a < 2) return -0.5 * a ** 3 + 2.5 * a ** 2 - 4 * a + 2
+  return 0
+}
+
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Plain RGBA pixels, row by row. */
+interface Pixels {
+  width: number
+  height: number
+  data: Uint8Array
+}
+
+/**
+ * PNG and JPEG, decoded by pure JavaScript libraries: the Edge runtime has no
+ * native image codecs. Loaded on use only, so a module that fails to load
+ * never takes down the functions importing this file.
+ */
+async function decodeImage(bytes: Uint8Array): Promise<Pixels> {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) {
+    const UPNG = (await import('upng-js')).default
+    const png = UPNG.decode(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer)
+    return { width: png.width, height: png.height, data: new Uint8Array(UPNG.toRGBA8(png)[0]) }
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    const jpeg = (await import('jpeg-js')).default
+    const image = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true })
+    return { width: image.width, height: image.height, data: new Uint8Array(image.data) }
+  }
+  throw new Error('Only PNG and JPEG logos can be squared; the original is kept')
+}
+
+/** The box around what is drawn: neither transparent nor near-white. */
+function inkBox(img: Pixels): Box {
+  let x0 = img.width
+  let y0 = img.height
+  let x1 = -1
+  let y1 = -1
+  const d = img.data
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const i = (y * img.width + x) * 4
+      const ink = d[i + 3] > 16 && !(d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245)
+      if (ink) {
+        x0 = Math.min(x0, x)
+        y0 = Math.min(y0, y)
+        x1 = Math.max(x1, x)
+        y1 = Math.max(y1, y)
+      }
+    }
+  }
+  return x1 < 0 ? { x: 0, y: 0, w: img.width, h: img.height } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
+}
+
+/**
+ * The logo centred on a transparent square, filling it with even padding.
+ * Bicubic resample of the drawn area, in premultiplied alpha.
+ */
+export async function squareLogo(bytes: Uint8Array): Promise<Uint8Array> {
+  const src = await decodeImage(bytes)
+  const box = inkBox(src)
+  const room = LOGO_SIZE * (1 - 2 * LOGO_PADDING)
+  const scale = Math.min(room / box.w, room / box.h)
+  const w = Math.max(1, Math.round(box.w * scale))
+  const h = Math.max(1, Math.round(box.h * scale))
+  const left = Math.round((LOGO_SIZE - w) / 2)
+  const top = Math.round((LOGO_SIZE - h) / 2)
+  const out = new Uint8Array(LOGO_SIZE * LOGO_SIZE * 4) // transparent
+  const px = (x: number, y: number, c: number) => {
+    const cx = Math.min(Math.max(x, 0), src.width - 1)
+    const cy = Math.min(Math.max(y, 0), src.height - 1)
+    return src.data[(cy * src.width + cx) * 4 + c]
+  }
+  for (let y = 0; y < h; y++) {
+    const fy = box.y + ((y + 0.5) * box.h) / h - 0.5
+    const iy = Math.floor(fy)
+    for (let x = 0; x < w; x++) {
+      const fx = box.x + ((x + 0.5) * box.w) / w - 0.5
+      const ix = Math.floor(fx)
+      let r = 0
+      let g = 0
+      let b = 0
+      let a = 0
+      let sum = 0
+      for (let m = -1; m <= 2; m++) {
+        const wy = cubic(fy - (iy + m))
+        for (let n = -1; n <= 2; n++) {
+          const weight = wy * cubic(fx - (ix + n))
+          const alpha = px(ix + n, iy + m, 3) / 255
+          r += px(ix + n, iy + m, 0) * alpha * weight
+          g += px(ix + n, iy + m, 1) * alpha * weight
+          b += px(ix + n, iy + m, 2) * alpha * weight
+          a += alpha * weight
+          sum += weight
+        }
+      }
+      const i = ((top + y) * LOGO_SIZE + left + x) * 4
+      const alpha = Math.min(Math.max(a / sum, 0), 1)
+      const channel = (value: number) => (alpha ? Math.min(255, Math.max(0, Math.round(value / sum / alpha))) : 0)
+      out[i] = channel(r)
+      out[i + 1] = channel(g)
+      out[i + 2] = channel(b)
+      out[i + 3] = Math.round(alpha * 255)
+    }
+  }
+  const UPNG = (await import('upng-js')).default
+  return new Uint8Array(UPNG.encode([out.buffer], LOGO_SIZE, LOGO_SIZE, 0))
 }
 
 /** The SVG centred on a square canvas, with 10% padding. */
