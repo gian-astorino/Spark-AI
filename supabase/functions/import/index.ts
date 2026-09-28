@@ -74,10 +74,16 @@ const USEFUL_PATHS = [
 ]
 
 function pickPages(home: ScrapedPage): string[] {
-  const origin = new URL(home.url).origin
-  const links = [...new Set(home.links.map((link) => link.split('#')[0]))].filter(
-    (link) => link.startsWith(origin) && link !== home.url && !/\.(pdf|jpe?g|png|webp|svg)$/i.test(link),
-  )
+  // "example.com" often redirects to "www.example.com": both count as the site.
+  const host = (link: string) => new URL(link).hostname.replace(/^www\./, '')
+  const site = host(home.url)
+  const links = [...new Set(home.links.map((link) => link.split('#')[0]))].filter((link) => {
+    try {
+      return host(link) === site && new URL(link).pathname !== new URL(home.url).pathname
+    } catch {
+      return false // relative or malformed links are not worth a credit
+    }
+  }).filter((link) => !/\.(pdf|jpe?g|png|webp|svg)$/i.test(link))
   const rank = (link: string) => {
     const path = new URL(link).pathname
     const index = USEFUL_PATHS.findIndex((pattern) => pattern.test(path))
@@ -111,21 +117,39 @@ async function runImport(db: SupabaseClient, businessId: string, jobId: string, 
   await db.from('businesses').update({ onboarding_status: 'chatting' }).eq('id', businessId)
 }
 
+// Firecrawl names colours by their role on the page.
+const COLOR_ROLES: Record<string, string> = {
+  primary: 'Primary',
+  secondary: 'Secondary',
+  accent: 'Accent',
+  background: 'Background',
+  textPrimary: 'Text',
+  textSecondary: 'Secondary text',
+  link: 'Link',
+}
+
 async function saveBranding(db: SupabaseClient, businessId: string, branding: Branding | undefined) {
   if (!branding) return
-  const logo = branding?.logo ? await storeLogo(db, businessId, branding.logo) : null
+  const logo = branding.logo ? await storeLogo(db, businessId, branding.logo) : null
   await db.from('brand_profiles').upsert({
     business_id: businessId,
     logo_path: logo,
-    logo_source_url: branding?.logo ?? null,
+    // Inline logos arrive as data: URLs, often tens of KB: the copy in storage is enough.
+    logo_source_url: branding.logo?.startsWith('http') ? branding.logo : null,
     source: 'import',
   })
 
   await db.from('brand_colors').delete().eq('business_id', businessId).eq('source', 'import')
-  const colors = Object.entries(branding?.colors ?? {}).filter(([, hex]) => /^#[0-9a-f]{6}$/i.test(hex))
+  const colors = Object.entries(branding.colors ?? {}).filter(([, hex]) => /^#[0-9a-f]{6}$/i.test(hex))
   if (colors.length > 0) {
     await db.from('brand_colors').insert(
-      colors.map(([role, hex], position) => ({ business_id: businessId, name: role, hex, position, source: 'import' })),
+      colors.map(([role, hex], position) => ({
+        business_id: businessId,
+        name: COLOR_ROLES[role] ?? role,
+        hex: hex.toUpperCase(),
+        position,
+        source: 'import',
+      })),
     )
   }
 }

@@ -113,7 +113,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const label = request.source === 'instagram' ? `@${request.target}` : displayUrl(request.target)
   const busy = thinking || importing.status === 'running'
   const lastId = entries[entries.length - 1]?.id
-  const panel = <ProfilePanel profile={profile} sectionState={sectionState} />
+  const panel = (titled: boolean) => <ProfilePanel profile={profile} sectionState={sectionState} titled={titled} />
 
   return (
     <div className="workspace">
@@ -140,7 +140,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                     <SheetTitle>Business profile</SheetTitle>
                     <SheetDescription>What Spark knows so far.</SheetDescription>
                   </SheetHeader>
-                  <div className="sheet-body">{panel}</div>
+                  <div className="sheet-body">{panel(false)}</div>
                 </SheetContent>
               </Sheet>
             </span>
@@ -247,7 +247,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
       </div>
 
       <aside className="profile-panel" aria-label="Business profile">
-        {panel}
+        {panel(true)}
       </aside>
     </div>
   )

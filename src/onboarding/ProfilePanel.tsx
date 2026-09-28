@@ -43,9 +43,12 @@ const EMPTY_HINT: Record<Section, string> = {
 export function ProfilePanel({
   profile,
   sectionState,
+  titled = true,
 }: {
   profile: Profile
   sectionState: (section: Section) => SectionState
+  /** False inside the sheet, whose own header already names the panel. */
+  titled?: boolean
 }) {
   const filled = SECTIONS.filter((section) => sectionState(section) === 'ready').length
 
@@ -54,7 +57,7 @@ export function ProfilePanel({
       <div className="profile-head">
         <Stack gap={3}>
           <div className="panel-heading">
-            <h2>Business profile</h2>
+            {titled && <h2>Business profile</h2>}
             <p>
               {filled} of {SECTIONS.length} sections
             </p>
