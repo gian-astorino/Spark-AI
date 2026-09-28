@@ -48,6 +48,7 @@ import {
 import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
 import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
+import { ProfileEditor, type Editing } from './ProfileEditor.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
 import { hasSection, type Profile, type Section } from './profile.ts'
 import { EVENTS, WAITING, findLink } from './script.ts'
@@ -81,7 +82,7 @@ interface Job {
 }
 
 const POLL_MS = 3000
-const AGENT_DOWN = "Sorry, I can't answer right now. Try again in a moment."
+const AGENT_DOWN = 'Scusa, in questo momento non riesco a rispondere. Riprova tra poco.'
 let nextId = 0
 
 const say = (text: string, quickReplies?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies })
@@ -92,6 +93,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const [profile, setProfile] = useState<Profile>({})
   const [draft, setDraft] = useState('')
   const [files, setFiles] = useState<PickedFile[]>([])
+  const [editing, setEditing] = useState<Editing | null>(null)
   const picker = useRef<HTMLInputElement>(null)
   // Agent turns in flight: the typing indicator shows while any is.
   const [pending, setPending] = useState(0)
@@ -232,7 +234,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
           await agentTurn({ message, attachments: paths })
         } catch (error) {
           console.error(error)
-          setEntries((list) => [...list, say("I couldn't upload those files. Try again, or with smaller ones.")])
+          setEntries((list) => [...list, say('Non sono riuscito a caricare i file. Riprova, magari con file più leggeri.')])
         } finally {
           setPending((count) => count - 1)
         }
@@ -249,32 +251,34 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const thinking = pending > 0
   const busy = thinking
   const lastId = entries[entries.length - 1]?.id
-  const panel = (titled: boolean) => <ProfilePanel profile={profile} sectionState={sectionState} titled={titled} />
+  const panel = (titled: boolean) => (
+    <ProfilePanel profile={profile} sectionState={sectionState} onEdit={setEditing} titled={titled} />
+  )
 
   return (
     <div className="workspace">
       <div className="chat">
         <header className="chat-header">
           <Inline gap={2} align="center">
-            <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
+            <Button variant="ghost" size="icon-sm" aria-label="Indietro" onClick={onBack}>
               <Icon icon={ArrowLeft02Icon} />
             </Button>
             <SparkMark withName />
           </Inline>
           <Inline gap={3} align="center">
-            <span className="step-count">Step 2 of 2</span>
+            <span className="step-count">Passo 2 di 2</span>
             <span className="profile-toggle">
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Icon icon={SidebarRightIcon} />
-                    Profile
+                    Profilo
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right">
                   <SheetHeader>
-                    <SheetTitle>Business profile</SheetTitle>
-                    <SheetDescription>What Spark knows so far.</SheetDescription>
+                    <SheetTitle>Profilo dell'attività</SheetTitle>
+                    <SheetDescription>Quello che Spark sa finora.</SheetDescription>
                   </SheetHeader>
                   <div className="sheet-body">{panel(false)}</div>
                 </SheetContent>
@@ -335,7 +339,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                 <MessageContent>
                   <Bubble variant="muted">
                     <BubbleContent>
-                      <Spinner aria-label="Spark is typing" />
+                      <Spinner aria-label="Spark sta scrivendo" />
                     </BubbleContent>
                   </Bubble>
                 </MessageContent>
@@ -365,7 +369,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                       <AttachmentTitle>{item.file.name}</AttachmentTitle>
                     </AttachmentContent>
                     <AttachmentActions>
-                      <AttachmentAction aria-label={`Remove ${item.file.name}`} onClick={() => unpick(item.id)}>
+                      <AttachmentAction aria-label={`Rimuovi ${item.file.name}`} onClick={() => unpick(item.id)}>
                         <Icon icon={Cancel01Icon} />
                       </AttachmentAction>
                     </AttachmentActions>
@@ -394,8 +398,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                 <InputGroupAddon align="inline-start">
                   <InputGroupButton
                     size="icon-sm"
-                    aria-label="Attach images or PDFs"
-                    title="Attach images or PDFs: a price list, your logo, photos"
+                    aria-label="Allega immagini o PDF"
+                    title="Allega immagini o PDF: un listino, il logo, delle foto"
                     onClick={() => picker.current?.click()}
                     disabled={files.length >= MAX_FILES}
                   >
@@ -403,7 +407,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                   </InputGroupButton>
                 </InputGroupAddon>
                 <InputGroupTextarea
-                  placeholder="Reply to Spark, or attach a price list, your logo, photos…"
+                  placeholder="Rispondi a Spark, oppure allega un listino, il logo, delle foto…"
                   value={draft}
                   rows={1}
                   onChange={(event) => setDraft(event.target.value)}
@@ -426,7 +430,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                     type="submit"
                     size="icon-sm"
                     variant="default"
-                    aria-label="Send"
+                    aria-label="Invia"
                     disabled={(!draft.trim() && files.length === 0) || busy}
                   >
                     <Icon icon={ArrowUp02Icon} />
@@ -438,9 +442,20 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
         </footer>
       </div>
 
-      <aside className="profile-panel" aria-label="Business profile">
+      <aside className="profile-panel" aria-label="Profilo dell'attività">
         {panel(true)}
       </aside>
+
+      <ProfileEditor
+        editing={editing}
+        profile={profile}
+        businessId={businessId}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null)
+          void refreshProfile()
+        }}
+      />
     </div>
   )
 }

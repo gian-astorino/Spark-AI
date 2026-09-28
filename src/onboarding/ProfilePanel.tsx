@@ -3,6 +3,7 @@ import {
   Avatar,
   AvatarFallback,
   Badge,
+  Button,
   Inline,
   ItemDescription,
   ItemTitle,
@@ -17,10 +18,13 @@ import {
   CheckmarkCircle02Icon,
   Location01Icon,
   PaintBoardIcon,
+  PencilEdit02Icon,
+  PlusSignIcon,
   ShoppingBag01Icon,
 } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from './Icon.tsx'
+import type { Editing } from './ProfileEditor.tsx'
 import { SECTIONS, SECTION_TITLES, type Profile, type Section } from './profile.ts'
 
 export type SectionState = 'ready' | 'loading' | 'empty'
@@ -34,20 +38,32 @@ const SECTION_ICONS: Record<Section, IconSvgElement> = {
 }
 
 const EMPTY_HINT: Record<Section, string> = {
-  business: 'Name, what you do and your sector.',
-  location: 'Address and opening hours.',
-  branding: 'Logo, colours, fonts, tone of voice and photos. You can attach them in the chat.',
-  catalog: 'Treatments with description, price and duration.',
-  calendar: "Your team and the calendar you use. Spark will ask in the chat.",
+  business: 'Nome, di cosa ti occupi e settore.',
+  location: 'Indirizzo e orari di apertura.',
+  branding: 'Logo, colori, font, tono di voce e foto. Puoi allegarli in chat.',
+  catalog: 'Trattamenti con descrizione, prezzo e durata.',
+  calendar: 'Il tuo team e il calendario che usi. Spark te lo chiederà in chat.',
+}
+
+/** What the pencil of each section opens. */
+const SECTION_EDIT: Record<Section, (profile: Profile) => Editing> = {
+  business: () => ({ kind: 'business' }),
+  location: (profile) => ({ kind: 'location', location: profile.locations?.[0] }),
+  branding: () => ({ kind: 'branding' }),
+  catalog: () => ({ kind: 'catalog' }),
+  calendar: () => ({ kind: 'calendar' }),
 }
 
 export function ProfilePanel({
   profile,
   sectionState,
+  onEdit,
   titled = true,
 }: {
   profile: Profile
   sectionState: (section: Section) => SectionState
+  /** Opens the editor: a pencil or any value in the panel. */
+  onEdit: (editing: Editing) => void
   /** False inside the sheet, whose own header already names the panel. */
   titled?: boolean
 }) {
@@ -58,9 +74,9 @@ export function ProfilePanel({
       <div className="profile-head">
         <Stack gap={3}>
           <div className="panel-heading">
-            {titled && <h2>Business profile</h2>}
+            {titled && <h2>Profilo dell'attività</h2>}
             <p>
-              {filled} of {SECTIONS.length} sections
+              {filled} di {SECTIONS.length} sezioni · tocca un dato per modificarlo
             </p>
           </div>
           <Progress value={(filled / SECTIONS.length) * 100} />
@@ -76,10 +92,21 @@ export function ProfilePanel({
                 <Icon icon={SECTION_ICONS[section]} />
                 <ItemTitle>{SECTION_TITLES[section]}</ItemTitle>
               </Inline>
-              {state === 'ready' ? <Icon icon={CheckmarkCircle02Icon} /> : state === 'loading' ? <Spinner /> : null}
+              <Inline gap={1} align="center">
+                {state === 'ready' ? <Icon icon={CheckmarkCircle02Icon} /> : state === 'loading' ? <Spinner /> : null}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Modifica ${SECTION_TITLES[section].toLowerCase()}`}
+                  title="Modifica"
+                  onClick={() => onEdit(SECTION_EDIT[section](profile))}
+                >
+                  <Icon icon={section === 'catalog' ? PlusSignIcon : PencilEdit02Icon} />
+                </Button>
+              </Inline>
             </div>
             {state === 'ready' ? (
-              <SectionBody section={section} profile={profile} />
+              <SectionBody section={section} profile={profile} onEdit={onEdit} />
             ) : state === 'loading' ? (
               <Stack gap={2}>
                 <Skeleton width="full" />
@@ -95,92 +122,121 @@ export function ProfilePanel({
   )
 }
 
-function SectionBody({ section, profile }: { section: Section; profile: Profile }) {
+/** A value in the panel that opens its editor when tapped. */
+function Editable({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" className="editable" aria-label={label} onClick={onClick}>
+      {children}
+    </button>
+  )
+}
+
+function SectionBody({ section, profile, onEdit }: { section: Section; profile: Profile; onEdit: (editing: Editing) => void }) {
   switch (section) {
     case 'business': {
       const b = profile.business!
       return (
-        <Stack gap={2}>
-          <Inline gap={2} align="center">
-            {b.name && <ItemTitle>{b.name}</ItemTitle>}
-            {b.sector && <Badge variant="secondary">{b.sector}</Badge>}
-          </Inline>
-          {b.description && <ItemDescription>{b.description}</ItemDescription>}
-        </Stack>
+        <Editable label="Modifica attività" onClick={() => onEdit({ kind: 'business' })}>
+          <Stack gap={2}>
+            <Inline gap={2} align="center">
+              {b.name && <ItemTitle>{b.name}</ItemTitle>}
+              {b.sector && <Badge variant="secondary">{b.sector}</Badge>}
+            </Inline>
+            {b.description && <ItemDescription>{b.description}</ItemDescription>}
+          </Stack>
+        </Editable>
       )
     }
     case 'location':
       return (
-        <Stack gap={4}>
+        <Stack gap={3}>
           {profile.locations!.map((location) => (
-            <Stack key={location.address} gap={3}>
-              <Stack gap={1}>
-                {location.name && <ItemTitle>{location.name}</ItemTitle>}
-                <ItemTitle>{location.address}</ItemTitle>
+            <Editable key={location.id} label={`Modifica ${location.address}`} onClick={() => onEdit({ kind: 'location', location })}>
+              <Stack gap={3}>
+                <Stack gap={1}>
+                  {location.name && <ItemTitle>{location.name}</ItemTitle>}
+                  <ItemTitle>{location.address}</ItemTitle>
+                </Stack>
+                {location.hours.length > 0 ? (
+                  <Rows rows={location.hours.map((row) => ({ label: row.days, value: row.time }))} />
+                ) : (
+                  <ItemDescription>Orari non ancora trovati.</ItemDescription>
+                )}
               </Stack>
-              {location.hours.length > 0 ? (
-                <Rows rows={location.hours.map((row) => ({ label: row.days, value: row.time }))} />
-              ) : (
-                <ItemDescription>Opening hours not found yet.</ItemDescription>
-              )}
-            </Stack>
+            </Editable>
           ))}
+          <Inline>
+            <Button variant="outline" size="sm" onClick={() => onEdit({ kind: 'location' })}>
+              <Icon icon={PlusSignIcon} />
+              Aggiungi sede
+            </Button>
+          </Inline>
         </Stack>
       )
     case 'branding': {
       // Photos alone make the section ready, without any branding from a site.
       const b = profile.branding ?? { colors: [], fonts: [], tone: [] }
+      const edit = () => onEdit({ kind: 'branding' })
       return (
         <Stack gap={4}>
           {b.logoUrl && (
             <Inline gap={3} align="center">
-              <img className="logo" src={b.logoUrl} alt="Logo" />
+              <button type="button" className="logo-button" aria-label="Vedi il logo" onClick={() => onEdit({ kind: 'logo' })}>
+                <img className="logo" src={b.logoUrl} alt="Logo" />
+              </button>
               <Stack gap={1}>
                 <ItemTitle>Logo</ItemTitle>
-                <ItemDescription>From your website</ItemDescription>
+                <ItemDescription>Tocca per vederlo</ItemDescription>
               </Stack>
             </Inline>
           )}
-          {b.colors.length > 0 && (
-            <div className="swatches">
-              {b.colors.map((color) => (
-                <div key={color.hex + color.name} className="swatch-card">
-                  {/* A data swatch: the colour is content, not styling. */}
-                  <span className="swatch" style={{ background: color.hex }} />
-                  <ItemTitle>{color.name}</ItemTitle>
-                  <ItemDescription>{color.hex}</ItemDescription>
+          <Editable label="Modifica branding" onClick={edit}>
+            <Stack gap={4}>
+              {b.colors.length > 0 && (
+                <div className="swatches">
+                  {b.colors.map((color) => (
+                    <div key={color.hex + color.name} className="swatch-card">
+                      {/* A data swatch: the colour is content, not styling. */}
+                      <span className="swatch" style={{ background: color.hex }} />
+                      <ItemTitle>{color.name}</ItemTitle>
+                      <ItemDescription>{color.hex}</ItemDescription>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-          {b.fonts.length > 0 && (
-            <Stack gap={2}>
-              <ItemDescription>Fonts</ItemDescription>
-              {b.fonts.map((font) => (
-                <FontSample key={font.role} role={font.role} family={font.family} />
-              ))}
+              )}
+              {b.fonts.length > 0 && (
+                <Stack gap={2}>
+                  <ItemDescription>Font</ItemDescription>
+                  {b.fonts.map((font) => (
+                    <FontSample key={font.role} role={font.role} family={font.family} />
+                  ))}
+                </Stack>
+              )}
+              {(b.toneDescription || b.tone.length > 0) && (
+                <Stack gap={2}>
+                  <ItemDescription>Tono di voce</ItemDescription>
+                  {b.toneDescription && <p className="tone">{b.toneDescription}</p>}
+                  {b.tone.length > 0 && (
+                    <Inline gap={2}>
+                      {b.tone.map((word) => (
+                        <Badge key={word} variant="secondary">
+                          {word}
+                        </Badge>
+                      ))}
+                    </Inline>
+                  )}
+                </Stack>
+              )}
             </Stack>
-          )}
+          </Editable>
           {profile.photos && profile.photos.length > 0 && (
             <Stack gap={2}>
-              <ItemDescription>Photos</ItemDescription>
+              <ItemDescription>Foto</ItemDescription>
               <div className="photos">
                 {profile.photos.map((photo) => (
-                  <img key={photo.url} src={photo.url} alt={photo.caption ?? 'Photo of the business'} title={photo.caption} />
+                  <img key={photo.url} src={photo.url} alt={photo.caption ?? "Foto dell'attività"} title={photo.caption} />
                 ))}
               </div>
-            </Stack>
-          )}
-          {b.tone.length > 0 && (
-            <Stack gap={2}>
-              <ItemDescription>Tone of voice</ItemDescription>
-              <Inline gap={2}>
-                {b.tone.map((word) => (
-                  <Badge key={word} variant="secondary">
-                    {word}
-                  </Badge>
-                ))}
-              </Inline>
             </Stack>
           )}
         </Stack>
@@ -188,36 +244,53 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
     }
     case 'catalog':
       return (
-        <Rows
-          emphasis
-          rows={profile.catalog!.map((item) => ({
-            label: item.name,
-            detail: item.category,
-            value: item.price ?? '—',
-            valueDetail: item.duration,
-          }))}
-        />
+        <Stack gap={3}>
+          <div className="rows">
+            {profile.catalog!.map((item) => (
+              <Editable key={item.id} label={`Modifica ${item.name}`} onClick={() => onEdit({ kind: 'catalog', item })}>
+                <span className="row" data-emphasis="">
+                  <span className="row-label">
+                    {item.name}
+                    {item.category && <small>{item.category}</small>}
+                  </span>
+                  <span className="row-value">
+                    {item.price ?? '—'}
+                    {item.duration && <small>{item.duration}</small>}
+                  </span>
+                </span>
+              </Editable>
+            ))}
+          </div>
+          <Inline>
+            <Button variant="outline" size="sm" onClick={() => onEdit({ kind: 'catalog' })}>
+              <Icon icon={PlusSignIcon} />
+              Aggiungi trattamento
+            </Button>
+          </Inline>
+        </Stack>
       )
     case 'calendar': {
       const c = profile.calendar!
       return (
-        <Stack gap={3}>
-          {c.members?.length ? (
-            <Stack gap={2}>
-              {c.members.map((member) => (
-                <Inline key={member} gap={2} align="center">
-                  <Avatar size="sm">
-                    <AvatarFallback>{member[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <ItemTitle>{member}</ItemTitle>
-                </Inline>
-              ))}
-            </Stack>
-          ) : (
-            <ItemDescription>Team members not set yet.</ItemDescription>
-          )}
-          <Rows rows={[{ label: 'Calendar', value: c.tool ?? 'Not set yet' }]} />
-        </Stack>
+        <Editable label="Modifica calendario" onClick={() => onEdit({ kind: 'calendar' })}>
+          <Stack gap={3}>
+            {c.members?.length ? (
+              <Stack gap={2}>
+                {c.members.map((member) => (
+                  <Inline key={member} gap={2} align="center">
+                    <Avatar size="sm">
+                      <AvatarFallback>{member[0]?.toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <ItemTitle>{member}</ItemTitle>
+                  </Inline>
+                ))}
+              </Stack>
+            ) : (
+              <ItemDescription>Team non ancora indicato.</ItemDescription>
+            )}
+            <Rows rows={[{ label: 'Calendario', value: c.tool ?? 'Non ancora indicato' }]} />
+          </Stack>
+        </Editable>
       )
     }
   }
@@ -245,7 +318,7 @@ function FontSample({ role, family }: { role: 'heading' | 'body'; family: string
       <span className="font-sample-name" style={{ fontFamily: `"${family}", var(--font-sans)` }}>
         {family}
       </span>
-      <ItemDescription>{role === 'heading' ? 'Headings' : 'Body text'}</ItemDescription>
+      <ItemDescription>{role === 'heading' ? 'Titoli' : 'Testo'}</ItemDescription>
     </div>
   )
 }

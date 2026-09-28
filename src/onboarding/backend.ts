@@ -71,13 +71,13 @@ export async function uploadAttachment(businessId: string, file: File): Promise<
   return path
 }
 
-const CALENDARS: Record<string, string> = {
+export const CALENDARS: Record<string, string> = {
   google_calendar: 'Google Calendar',
   outlook: 'Outlook',
   apple_calendar: 'Apple Calendar',
   fresha: 'Fresha',
   treatwell: 'Treatwell',
-  paper: 'Paper diary',
+  paper: 'Agenda cartacea',
 }
 
 export async function loadProfile(businessId: string): Promise<Profile> {
@@ -85,14 +85,18 @@ export async function loadProfile(businessId: string): Promise<Profile> {
     supabase.from('businesses').select('name, description, sector').eq('id', businessId).single(),
     supabase
       .from('locations')
-      .select('name, address, position, opening_hours(weekday, opens_at, closes_at)')
+      .select('id, name, address, position, opening_hours(weekday, opens_at, closes_at)')
       .eq('business_id', businessId)
       .order('position'),
-    supabase.from('brand_profiles').select('logo_path, logo_source_url, fonts, tone_of_voice').eq('business_id', businessId).maybeSingle(),
+    supabase
+      .from('brand_profiles')
+      .select('logo_path, logo_source_url, fonts, tone_of_voice, tone_description')
+      .eq('business_id', businessId)
+      .maybeSingle(),
     supabase.from('brand_colors').select('name, hex').eq('business_id', businessId).order('position'),
     supabase
       .from('catalog_items')
-      .select('name, description, category, price_cents, currency, duration_minutes, position')
+      .select('id, name, description, category, price_cents, currency, duration_minutes, position')
       .eq('business_id', businessId)
       .order('position'),
     supabase.from('team_members').select('display_name, position').eq('business_id', businessId).order('position'),
@@ -105,11 +109,20 @@ export async function loadProfile(businessId: string): Promise<Profile> {
   if (b) profile.business = { name: b.name ?? undefined, description: b.description ?? undefined, sector: b.sector ?? undefined }
 
   if (locations.data?.length) {
-    profile.locations = locations.data.map((location) => ({
-      name: location.name ?? undefined,
-      address: location.address,
-      hours: formatHours(location.opening_hours ?? []),
-    }))
+    profile.locations = locations.data.map((location) => {
+      const intervals = (location.opening_hours ?? []).map((row) => ({
+        weekday: row.weekday,
+        opens_at: row.opens_at.slice(0, 5),
+        closes_at: row.closes_at.slice(0, 5),
+      }))
+      return {
+        id: location.id,
+        name: location.name ?? undefined,
+        address: location.address,
+        hours: formatHours(intervals),
+        intervals,
+      }
+    })
   }
 
   if (brand.data || colors.data?.length) {
@@ -123,6 +136,7 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       colors: (colors.data ?? []).map((color) => ({ name: color.name ?? '', hex: color.hex })),
       fonts: brand.data?.fonts ?? [],
       tone: brand.data?.tone_of_voice ?? [],
+      toneDescription: brand.data?.tone_description ?? undefined,
     }
   }
 
@@ -138,6 +152,10 @@ export async function loadProfile(businessId: string): Promise<Profile> {
 
   if (catalog.data?.length) {
     profile.catalog = catalog.data.map((item) => ({
+      id: item.id,
+      priceCents: item.price_cents ?? undefined,
+      currency: item.currency,
+      durationMinutes: item.duration_minutes ?? undefined,
       name: item.name,
       description: item.description ?? undefined,
       category: item.category ?? undefined,
@@ -149,12 +167,13 @@ export async function loadProfile(businessId: string): Promise<Profile> {
     profile.calendar = {
       members: team.data?.map((member) => member.display_name),
       tool: calendar.data ? (calendar.data.provider_label ?? CALENDARS[calendar.data.provider] ?? calendar.data.provider) : undefined,
+      provider: calendar.data?.provider,
     }
   }
   return profile
 }
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 
 /** Opening intervals into rows: "Mon – Fri 09:00–13:00, 14:00–19:00", closed days left out. */
 export function formatHours(rows: { weekday: number; opens_at: string; closes_at: string }[]): HoursRow[] {

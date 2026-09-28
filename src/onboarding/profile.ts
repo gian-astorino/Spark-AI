@@ -5,11 +5,11 @@ export const SECTIONS = ['business', 'location', 'branding', 'catalog', 'calenda
 export type Section = (typeof SECTIONS)[number]
 
 export const SECTION_TITLES: Record<Section, string> = {
-  business: 'Business',
-  location: 'Location',
+  business: 'Attività',
+  location: 'Sede',
   branding: 'Branding',
-  catalog: 'Catalog',
-  calendar: 'Calendar',
+  catalog: 'Catalogo',
+  calendar: 'Calendario',
 }
 
 export interface HoursRow {
@@ -17,18 +17,50 @@ export interface HoursRow {
   time: string
 }
 
+/** One open interval, as stored: ISO weekday (1 = Monday), 24h times. */
+export interface Interval {
+  weekday: number
+  opens_at: string
+  closes_at: string
+}
+
+export interface Location {
+  id: string
+  name?: string
+  address: string
+  /** For display: days grouped, "Mon – Fri 09:00–19:00". */
+  hours: HoursRow[]
+  /** For editing. */
+  intervals: Interval[]
+}
+
+export interface CatalogItem {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  price?: string
+  duration?: string
+  priceCents?: number
+  currency: string
+  durationMinutes?: number
+}
+
 export interface Profile {
   business?: { name?: string; description?: string; sector?: string }
-  locations?: { name?: string; address: string; hours: HoursRow[] }[]
+  locations?: Location[]
   branding?: {
     logoUrl?: string
     colors: { name: string; hex: string }[]
     fonts: { role: 'heading' | 'body'; family: string }[]
+    /** Keywords. */
     tone: string[]
+    /** How the business talks, in a few sentences. */
+    toneDescription?: string
   }
   photos?: { url: string; caption?: string }[]
-  catalog?: { name: string; description?: string; category?: string; price?: string; duration?: string }[]
-  calendar?: { members?: string[]; tool?: string }
+  catalog?: CatalogItem[]
+  calendar?: { members?: string[]; tool?: string; provider?: string }
 }
 
 export function hasSection(profile: Profile, section: Section) {

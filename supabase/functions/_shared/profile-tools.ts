@@ -40,7 +40,7 @@ export const DEFS: ToolDef[] = [
       properties: {
         name: nullable('string', 'Business name'),
         description: nullable('string', 'What the business does, one or two sentences'),
-        sector: nullable('string', 'Short label, e.g. "Beauty & skincare"'),
+        sector: nullable('string', 'Short label in Italian, e.g. "Centro estetico", "Parrucchiere"'),
       },
       required: ['name', 'description', 'sector'],
       additionalProperties: false,
@@ -126,21 +126,19 @@ export const DEFS: ToolDef[] = [
   },
   {
     name: 'set_tone_of_voice',
-    description: 'Replace the adjectives describing how the business talks to customers.',
+    description:
+      'Describe how the business talks to its clients, so that texts written for it sound like it. Replaces the current tone of voice.',
     input_schema: {
       type: 'object',
-      properties: { adjectives: { type: 'array', items: { type: 'string' } } },
-      required: ['adjectives'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'set_logo',
-    description: 'Use an attached image as the business logo. Only when the owner says it is their logo, or it clearly is.',
-    input_schema: {
-      type: 'object',
-      properties: { attachment: { type: 'string', description: 'The attachment id, as listed with the message' } },
-      required: ['attachment'],
+      properties: {
+        description: {
+          type: 'string',
+          description:
+            'Three to five sentences, in the language of the business: how it addresses clients (tu or lei, first names), register and warmth, typical vocabulary and phrases, sentence length, use of emoji and exclamation marks, what it avoids. Concrete enough to write a post or a reminder in that voice.',
+        },
+        keywords: { type: 'array', items: { type: 'string' }, description: 'Three to five adjectives summing it up' },
+      },
+      required: ['description', 'keywords'],
       additionalProperties: false,
     },
   },
@@ -379,21 +377,14 @@ export async function runTool(
 
     case 'set_tone_of_voice':
       await check(
-        db.from('brand_profiles').upsert({ business_id: businessId, tone_of_voice: input.adjectives, source: ctx.source }),
+        db.from('brand_profiles').upsert({
+          business_id: businessId,
+          tone_description: String(input.description).trim(),
+          tone_of_voice: input.keywords,
+          source: ctx.source,
+        }),
       )
       return 'Saved.'
-
-    case 'set_logo': {
-      const path = ownAttachment(String(input.attachment), businessId)
-      const { data: file, error } = await db.storage.from('uploads').download(path)
-      if (error || !file) throw new Error(`Attachment not found: ${input.attachment}`)
-      const extension = path.split('.').pop() ?? 'png'
-      const logoPath = `${businessId}/logo.${extension}`
-      await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
-      await check(db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, source: ctx.source }))
-      requestLogoRefresh(businessId)
-      return LOGO_SAVED
-    }
 
     case 'view_logo': {
       const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()

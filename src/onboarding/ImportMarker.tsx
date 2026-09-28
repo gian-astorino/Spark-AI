@@ -42,10 +42,10 @@ export function ImportMarker({
         <ItemContent>
           <Stack gap={2}>
             <Stack gap={1}>
-              <ItemTitle>Researching {label}</ItemTitle>
-              <ItemDescription>{activity ?? 'Opening the link'}…</ItemDescription>
+              <ItemTitle>Sto cercando informazioni su {label}</ItemTitle>
+              <ItemDescription>{activity ?? 'Apro il link'}…</ItemDescription>
               <ItemDescription>
-                {pagesRead} {pagesRead === 1 ? 'page' : 'pages'} read · this can take a few minutes
+                {pagesRead} {pagesRead === 1 ? 'pagina letta' : 'pagine lette'} · può richiedere qualche minuto
               </ItemDescription>
             </Stack>
             <Progress value={counted ? (pagesRead / pagesTotal) * 100 : 0} />
@@ -53,7 +53,7 @@ export function ImportMarker({
         </ItemContent>
         <ItemActions>
           <Button variant="ghost" size="sm" onClick={onSkip}>
-            Skip
+            Salta
           </Button>
         </ItemActions>
       </Item>
@@ -61,9 +61,9 @@ export function ImportMarker({
   }
 
   const view = {
-    done: { icon: CheckmarkCircle02Icon, title: `Researched ${label}: ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} read` },
-    failed: { icon: Alert02Icon, title: `Couldn't research ${label}` },
-    skipped: { icon: Cancel01Icon, title: `Stopped researching ${label}` },
+    done: { icon: CheckmarkCircle02Icon, title: `Ricerca su ${label} completata: ${pagesRead} ${pagesRead === 1 ? 'pagina letta' : 'pagine lette'}` },
+    failed: { icon: Alert02Icon, title: `Non sono riuscito a leggere ${label}` },
+    skipped: { icon: Cancel01Icon, title: `Ricerca su ${label} interrotta` },
   }[status]
 
   return (

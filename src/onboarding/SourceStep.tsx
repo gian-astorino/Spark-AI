@@ -21,9 +21,9 @@ import { SparkMark } from './SparkMark.tsx'
 import type { ImportRequest, Source } from './types.ts'
 
 const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement; disabled?: boolean }[] = [
-  { value: 'website', title: 'My website', description: 'Import from your site', icon: Globe02Icon },
-  { value: 'instagram', title: 'Instagram', description: 'Coming soon', icon: InstagramIcon, disabled: true },
-  { value: 'none', title: "I don't have a website", description: 'Start from a quick chat', icon: Message01Icon },
+  { value: 'website', title: 'Il mio sito', description: 'Importa dal tuo sito', icon: Globe02Icon },
+  { value: 'instagram', title: 'Instagram', description: 'Presto disponibile', icon: InstagramIcon, disabled: true },
+  { value: 'none', title: 'Non ho un sito', description: 'Parti da una breve chat', icon: Message01Icon },
 ]
 
 export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest) => void }) {
@@ -48,13 +48,13 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
     if (value !== source) return null
     if (value === 'website') {
       return (
-        <ButtonGroup aria-label="Website address">
+        <ButtonGroup aria-label="Indirizzo del sito">
           <ButtonGroupText>https://</ButtonGroupText>
           <Input
-            aria-label="Website address"
+            aria-label="Indirizzo del sito"
             inputMode="url"
             autoComplete="url"
-            placeholder="yourbusiness.com"
+            placeholder="tuaattivita.it"
             value={website}
             // Pasting a full URL keeps only what comes after the fixed prefix.
             onChange={(event) => setWebsite(event.target.value.replace(/^\s*https?:\/\//i, ''))}
@@ -65,11 +65,11 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
     }
     if (value === 'instagram') {
       return (
-        <ButtonGroup aria-label="Instagram profile">
+        <ButtonGroup aria-label="Profilo Instagram">
           <ButtonGroupText>@</ButtonGroupText>
           <Input
-            aria-label="Instagram profile"
-            placeholder="yourbusiness"
+            aria-label="Profilo Instagram"
+            placeholder="tuaattivita"
             value={handle}
             onChange={(event) => setHandle(event.target.value.replace(/^\s*@/, ''))}
             autoFocus
@@ -84,14 +84,14 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
     <div className="welcome">
       <header className="welcome-top">
         <SparkMark withName />
-        <span className="step-count">Step 1 of 2</span>
+        <span className="step-count">Passo 1 di 2</span>
       </header>
 
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
           <div className="page-heading">
-            <h1>Let's get to know your business</h1>
-            <p>Spark learns from what you already have online. Pick a starting point.</p>
+            <h1>Conosciamo la tua attività</h1>
+            <p>Spark impara da quello che hai già online. Scegli da dove partire.</p>
           </div>
 
           <RadioGroup value={source} onValueChange={(value) => setSource(value as Source)}>
@@ -117,13 +117,13 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
 
           <div className="stretch">
             <Button type="submit" size="lg" disabled={!canContinue}>
-              Continue
+              Continua
             </Button>
           </div>
         </Stack>
       </form>
 
-      <footer className="welcome-note">You can change everything later.</footer>
+      <footer className="welcome-note">Potrai modificare tutto in seguito.</footer>
     </div>
   )
 }

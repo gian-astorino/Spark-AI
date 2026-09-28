@@ -70,7 +70,7 @@ async function start(asUser: SupabaseClient, db: SupabaseClient, businessId: str
       additive,
       status: 'running',
       pages_total: additive ? EXTRA_READS : MAX_READS,
-      activity: 'Opening the link',
+      activity: 'Apro il link',
       started_at: new Date().toISOString(),
     })
     .select('id')

@@ -1,7 +1,7 @@
 // The few lines the app says itself, and how it tells the agent what happened.
 // Everything else in the conversation comes from the agent.
 
-export const WAITING = "Hi, I'm Spark. Give me a moment while I read your website."
+export const WAITING = 'Ciao, sono Spark. Dammi un momento mentre leggo il tuo sito.'
 
 export const EVENTS = {
   noWebsite: "The owner has no website. Greet them and start collecting the profile by chat.",

@@ -203,29 +203,34 @@
   gap: 1rem;
 }
 
-.row dt {
+.row dt,
+.row .row-label {
   color: var(--muted-foreground);
 }
 
-.row[data-emphasis] dt {
+.row[data-emphasis] dt,
+.row[data-emphasis] .row-label {
   color: var(--foreground);
   font-weight: 500;
 }
 
-.row dt small {
+.row dt small,
+.row .row-label small {
   display: block;
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--muted-foreground);
 }
 
-.row dd {
+.row dd,
+.row .row-value {
   margin: 0;
   font-weight: 500;
   text-align: right;
 }
 
-.row dd small {
+.row dd small,
+.row .row-value small {
   display: block;
   font-size: 0.75rem;
   font-weight: 400;
@@ -300,4 +305,76 @@
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: var(--radius-lg);
+}
+
+/* ---------- Editable profile ---------- */
+
+.editable {
+  display: block;
+  width: 100%;
+  margin: -0.375rem;
+  padding: 0.375rem;
+  box-sizing: content-box;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.editable:hover {
+  background: var(--muted);
+}
+
+.editable:focus-visible,
+.logo-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.rows > .editable .row {
+  display: flex;
+}
+
+.logo-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--radius-lg);
+  cursor: zoom-in;
+}
+
+.logo-large {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: var(--radius-xl);
+  background: var(--muted);
+}
+
+.tone {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.hours-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.color-input {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-top: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  cursor: pointer;
 }
