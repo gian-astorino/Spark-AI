@@ -13,14 +13,14 @@ import {
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import {
-  Building03Icon,
-  Calendar03Icon,
+  BookOpen01Icon,
+  Calendar05Icon,
   CheckmarkCircle02Icon,
-  Location01Icon,
+  Location06Icon,
   PaintBoardIcon,
   PencilEdit02Icon,
   PlusSignIcon,
-  ShoppingBag01Icon,
+  Store04Icon,
 } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from './Icon.tsx'
@@ -30,11 +30,11 @@ import { SECTIONS, SECTION_TITLES, type Profile, type Section } from './profile.
 export type SectionState = 'ready' | 'loading' | 'empty'
 
 const SECTION_ICONS: Record<Section, IconSvgElement> = {
-  business: Building03Icon,
-  location: Location01Icon,
+  business: Store04Icon,
+  location: Location06Icon,
   branding: PaintBoardIcon,
-  catalog: ShoppingBag01Icon,
-  calendar: Calendar03Icon,
+  catalog: BookOpen01Icon,
+  calendar: Calendar05Icon,
 }
 
 const EMPTY_HINT: Record<Section, string> = {
