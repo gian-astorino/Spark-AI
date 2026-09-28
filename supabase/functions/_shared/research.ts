@@ -31,7 +31,7 @@ What the profile needs:
 - tone of voice (from how its pages talk);
 - branding: logo, brand colours and fonts.
 
-The one rule: look only for what is missing. The profile_data you are given shows what is already there; together with what you save along the way, it tells you what is still missing. Never search for, or read pages for, something the profile already has. When nothing is missing, call finish_research at once, even with budget left. If two searches in a row bring nothing new, stop.
+The one rule: look only for what is missing. Work section by section: business name, sector, address, opening hours, catalog, tone of voice, logo, colours, fonts. A section that already has data counts as done: never search again to complete or improve it (more treatments, missing durations, a better description) unless the owner asked for it. The profile_data you are given shows what is already there; with what you save along the way, it tells you what is still missing. When nothing is missing, call finish_research at once, even with budget left. If two searches in a row bring nothing new, stop.
 
 Branding comes from the business's own website, never from a booking platform or directory: when logo, colours or fonts are missing, find the official website (it may be linked from its booking or social pages, or found by searching its name and city) and call import_branding_from_site with its home page. That reads logo, colours and fonts in one go. If the business has no website of its own, use the preview_image of its Facebook or Instagram page as the logo with set_logo_from_url.
 If there is still no logo after that, look for it with search_images (e.g. "<name> <city> logo"). You will see the results: pick one only if you can read the business's name in it and it comes from a page about this business (its site, social or booking pages); save it with set_logo_from_url and its image address. If none clearly qualifies, leave the logo missing: a wrong logo is worse than none.
@@ -110,7 +110,7 @@ export interface ResearchJob {
 /** Starts the research: the first background response. Returns its id. */
 export async function beginResearch(start: string, profile: string, additive: boolean): Promise<string> {
   const goal = additive
-    ? `The owner pasted this link, which is theirs, to fill gaps in a profile that already exists: ${start}. Read it and save what it adds. Search further only if something from your list is still missing afterwards.`
+    ? `The owner pasted this link, which is theirs: ${start}. They asked for it, so read it and save everything it adds, sections already in the profile included. Do not search beyond it, except for sections still empty afterwards.`
     : `Research the business. The owner gave this link as theirs: ${start}`
   const response = await openai.responses.create({
     model: MODEL,
