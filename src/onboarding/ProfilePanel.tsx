@@ -18,6 +18,7 @@ import {
   Edit03Icon,
   Location06Icon,
   PaintBoardIcon,
+  PenTool03Icon,
   PlusSignIcon,
   Store04Icon,
 } from '@hugeicons/core-free-icons'
@@ -32,6 +33,7 @@ const SECTION_ICONS: Record<Section, IconSvgElement> = {
   business: Store04Icon,
   location: Location06Icon,
   branding: PaintBoardIcon,
+  tone: PenTool03Icon,
   catalog: BookOpen01Icon,
   calendar: Calendar05Icon,
 }
@@ -39,7 +41,8 @@ const SECTION_ICONS: Record<Section, IconSvgElement> = {
 const EMPTY_HINT: Record<Section, string> = {
   business: 'Nome, di cosa ti occupi e settore.',
   location: 'Indirizzo e orari di apertura.',
-  branding: 'Logo, colori, font, tono di voce e foto. Puoi allegarli in chat.',
+  branding: 'Logo, colori, font e foto. Puoi allegarli in chat.',
+  tone: 'Come la tua attività parla ai clienti.',
   catalog: 'Trattamenti con descrizione, prezzo e durata.',
   calendar: 'Il tuo team e il calendario che usi. Spark te lo chiederà in chat.',
 }
@@ -49,6 +52,7 @@ const SECTION_EDIT: Record<Section, (profile: Profile) => Editing> = {
   business: () => ({ kind: 'business' }),
   location: (profile) => ({ kind: 'location', location: profile.locations?.[0] }),
   branding: () => ({ kind: 'branding' }),
+  tone: () => ({ kind: 'tone' }),
   catalog: () => ({ kind: 'catalog' }),
   calendar: () => ({ kind: 'calendar' }),
 }
@@ -212,21 +216,6 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
                   ))}
                 </Stack>
               )}
-              {(b.toneDescription || b.tone.length > 0) && (
-                <Stack gap={2}>
-                  <ItemDescription>Tono di voce</ItemDescription>
-                  {b.toneDescription && <p className="tone">{b.toneDescription}</p>}
-                  {b.tone.length > 0 && (
-                    <Inline gap={2}>
-                      {b.tone.map((word) => (
-                        <Badge key={word} variant="secondary">
-                          {word}
-                        </Badge>
-                      ))}
-                    </Inline>
-                  )}
-                </Stack>
-              )}
             </Stack>
           </Editable>
           {profile.photos && profile.photos.length > 0 && (
@@ -240,6 +229,25 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
             </Stack>
           )}
         </Stack>
+      )
+    }
+    case 'tone': {
+      const b = profile.branding!
+      return (
+        <Editable label="Modifica tono di voce" onClick={() => onEdit({ kind: 'tone' })}>
+          <Stack gap={2}>
+            {b.toneDescription && <p className="tone">{b.toneDescription}</p>}
+            {b.tone.length > 0 && (
+              <Inline gap={2}>
+                {b.tone.map((word) => (
+                  <Badge key={word} variant="secondary">
+                    {word}
+                  </Badge>
+                ))}
+              </Inline>
+            )}
+          </Stack>
+        </Editable>
       )
     }
     case 'catalog':

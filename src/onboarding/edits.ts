@@ -125,8 +125,6 @@ export async function saveBranding(
     colors: { name: string; hex: string }[]
     headingFont: string
     bodyFont: string
-    toneDescription: string
-    toneKeywords: string
   },
 ) {
   const colors = fields.colors.filter((color) => /^#[0-9a-f]{6}$/i.test(color.hex))
@@ -152,8 +150,17 @@ export async function saveBranding(
     supabase.from('brand_profiles').upsert({
       business_id: businessId,
       fonts,
-      tone_description: fields.toneDescription.trim() || null,
-      tone_of_voice: fields.toneKeywords
+      source: 'manual',
+    }),
+  )
+}
+
+export async function saveTone(businessId: string, fields: { description: string; keywords: string }) {
+  await run(
+    supabase.from('brand_profiles').upsert({
+      business_id: businessId,
+      tone_description: fields.description.trim() || null,
+      tone_of_voice: fields.keywords
         .split(',')
         .map((word) => word.trim())
         .filter(Boolean),

@@ -1,13 +1,14 @@
 // The business profile Spark collects during onboarding, as the panel shows
 // it. It lives in the database: the imports and the agent write it there.
 
-export const SECTIONS = ['business', 'location', 'branding', 'catalog', 'calendar'] as const
+export const SECTIONS = ['business', 'location', 'branding', 'tone', 'catalog', 'calendar'] as const
 export type Section = (typeof SECTIONS)[number]
 
 export const SECTION_TITLES: Record<Section, string> = {
   business: 'Attività',
   location: 'Sede',
   branding: 'Branding',
+  tone: 'Tono di voce',
   catalog: 'Catalogo',
   calendar: 'Calendario',
 }
@@ -76,6 +77,8 @@ export function hasSection(profile: Profile, section: Section) {
         profile.branding?.fonts.length ||
         profile.photos?.length
       )
+    case 'tone':
+      return !!(profile.branding?.toneDescription || profile.branding?.tone.length)
     case 'catalog':
       return (profile.catalog?.length ?? 0) > 0
     case 'calendar':

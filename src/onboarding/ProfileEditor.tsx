@@ -29,6 +29,7 @@ import {
   saveCalendar,
   saveCatalogItem,
   saveLocation,
+  saveTone,
 } from './edits.ts'
 import type { CatalogItem, Location, Profile } from './profile.ts'
 
@@ -37,6 +38,7 @@ export type Editing =
   | { kind: 'business' }
   | { kind: 'location'; location?: Location }
   | { kind: 'branding' }
+  | { kind: 'tone' }
   | { kind: 'catalog'; item?: CatalogItem }
   | { kind: 'calendar' }
   | { kind: 'logo' }
@@ -151,6 +153,8 @@ function Form({
       )
     case 'branding':
       return <BrandingForm profile={profile} footer={(values) => footer(() => act((id) => saveBranding(id, values)))} />
+    case 'tone':
+      return <ToneForm profile={profile} footer={(values) => footer(() => act((id) => saveTone(id, values)))} />
     case 'catalog':
       return (
         <CatalogForm
@@ -274,8 +278,6 @@ function BrandingForm({
   )
   const [headingFont, setHeadingFont] = useState(brand?.fonts.find((font) => font.role === 'heading')?.family ?? '')
   const [bodyFont, setBodyFont] = useState(brand?.fonts.find((font) => font.role === 'body')?.family ?? '')
-  const [toneDescription, setToneDescription] = useState(brand?.toneDescription ?? '')
-  const [toneKeywords, setToneKeywords] = useState((brand?.tone ?? []).join(', '))
   return (
     <>
       <DialogHeader>
@@ -307,16 +309,37 @@ function BrandingForm({
         </Stack>
         <TextField label="Font dei titoli" value={headingFont} onChange={setHeadingFont} placeholder="Playfair Display" />
         <TextField label="Font del testo" value={bodyFont} onChange={setBodyFont} placeholder="Inter" />
-        <TextField
-          label="Tono di voce"
-          value={toneDescription}
-          onChange={setToneDescription}
-          multiline
-          hint="Come parli ai clienti: tu o lei, caldo o formale, le parole che usi, emoji sì o no."
-        />
-        <TextField label="Parole chiave" value={toneKeywords} onChange={setToneKeywords} placeholder="Caloroso, esperto, rassicurante" />
       </Stack>
-      {footer({ colors, headingFont, bodyFont, toneDescription, toneKeywords })}
+      {footer({ colors, headingFont, bodyFont })}
+    </>
+  )
+}
+
+function ToneForm({
+  profile,
+  footer,
+}: {
+  profile: Profile
+  footer: (values: { description: string; keywords: string }) => React.ReactNode
+}) {
+  const [description, setDescription] = useState(profile.branding?.toneDescription ?? '')
+  const [keywords, setKeywords] = useState((profile.branding?.tone ?? []).join(', '))
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Tono di voce</DialogTitle>
+      </DialogHeader>
+      <Stack gap={4}>
+        <TextField
+          label="Come parli ai clienti"
+          value={description}
+          onChange={setDescription}
+          multiline
+          hint="Tu o lei, caldo o formale, le parole che usi, emoji sì o no, cosa eviti."
+        />
+        <TextField label="Parole chiave" value={keywords} onChange={setKeywords} placeholder="Caloroso, esperto, rassicurante" />
+      </Stack>
+      {footer({ description, keywords })}
     </>
   )
 }
