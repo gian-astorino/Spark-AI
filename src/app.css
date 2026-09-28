@@ -435,3 +435,16 @@
   font-weight: 500;
   line-height: 1;
 }
+
+/* The icon of a source choice, centred on the card's height. */
+.source-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  align-self: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg-spark);
+  background: var(--background);
+}

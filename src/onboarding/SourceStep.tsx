@@ -3,7 +3,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupText,
-  EmptyMedia,
   Field,
   FieldContent,
   FieldDescription,
@@ -99,10 +98,10 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
               {OPTIONS.map((option) => (
                 <FieldLabel key={option.value} htmlFor={`source-${option.value}`}>
                   <Field orientation="horizontal" data-disabled={option.disabled}>
-                    {/* EmptyMedia borrowed for its grey tile: the DS has no media container for this yet. */}
-                    <EmptyMedia variant="icon">
+                    {/* Spark's own tile: the DS has no media container for a choice card yet. */}
+                    <span className="source-tile" aria-hidden>
                       <Icon icon={option.icon} size={20} />
-                    </EmptyMedia>
+                    </span>
                     <FieldContent>
                       <FieldTitle>{option.title}</FieldTitle>
                       <FieldDescription>{option.description}</FieldDescription>
