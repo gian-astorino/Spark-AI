@@ -15,6 +15,8 @@ export interface ScrapedPage {
   title?: string
   markdown: string
   links: string[]
+  /** The page's preview image (og:image): on a Facebook or Instagram page, its profile photo. */
+  image?: string
   branding?: Branding
 }
 
@@ -41,6 +43,29 @@ export async function scrape(url: string, withBranding = false): Promise<Scraped
     title: data.metadata?.title,
     markdown: data.markdown ?? '',
     links: data.links ?? [],
+    image: data.metadata?.ogImage ?? data.metadata?.['og:image'] ?? undefined,
     branding: data.branding,
+  }
+}
+
+/**
+ * The preview image of a page, read the way link previews are built. Works on
+ * pages whose content sits behind a login wall (Facebook, Instagram), which
+ * still publish their preview for sharing.
+ */
+export const PREVIEW_CRAWLER = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+
+export async function previewImage(url: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': PREVIEW_CRAWLER },
+      redirect: 'follow',
+    })
+    const html = (await response.text()).slice(0, 300_000)
+    const tag = html.match(/<meta[^>]+property=["']og:image["'][^>]*>/i)?.[0]
+    const content = tag?.match(/content=["']([^"']+)["']/i)?.[1]
+    return content?.replace(/&amp;/g, '&')
+  } catch {
+    return undefined
   }
 }

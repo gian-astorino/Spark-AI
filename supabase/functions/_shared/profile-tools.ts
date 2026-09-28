@@ -1,5 +1,6 @@
 import type OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { PREVIEW_CRAWLER } from './firecrawl.ts'
 import { addressKey, key } from './matching.ts'
 
 // The hands of both models, the chat agent and the import research: every
@@ -139,6 +140,17 @@ export const DEFS: ToolDef[] = [
       type: 'object',
       properties: { attachment: { type: 'string', description: 'The attachment id, as listed with the message' } },
       required: ['attachment'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'set_logo_from_url',
+    description:
+      "Use an image found on the web as the business logo, e.g. the profile photo (preview image) of the business's own Facebook or Instagram page.",
+    input_schema: {
+      type: 'object',
+      properties: { url: { type: 'string', description: 'The image address' } },
+      required: ['url'],
       additionalProperties: false,
     },
   },
@@ -328,6 +340,24 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
       const logoPath = `${businessId}/logo.${extension}`
       await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
       await check(db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, source: ctx.source }))
+      return 'Logo saved.'
+    }
+
+    case 'set_logo_from_url': {
+      const url = String(input.url)
+      if (!/^https:\/\//.test(url)) return 'Not saved: the address must start with https://'
+      // Facebook serves its preview images only to link-preview crawlers.
+      const response = await fetch(url, { headers: { 'User-Agent': PREVIEW_CRAWLER } })
+      const type = response.headers.get('content-type') ?? ''
+      if (!response.ok || !type.startsWith('image/')) return `Not saved: that address is not an image (${response.status} ${type})`
+      const image = await response.arrayBuffer()
+      if (image.byteLength > 5_000_000) return 'Not saved: the image is larger than 5 MB'
+      const extension = type.includes('svg') ? 'svg' : type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg'
+      const logoPath = `${businessId}/logo.${extension}`
+      await check(db.storage.from('logos').upload(logoPath, image, { contentType: type, upsert: true }))
+      await check(
+        db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, logo_source_url: url, source: ctx.source }),
+      )
       return 'Logo saved.'
     }
 
