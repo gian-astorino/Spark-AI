@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   ButtonGroup,
@@ -29,6 +29,12 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
   const [source, setSource] = useState<Source>('website')
   const [website, setWebsite] = useState('')
   const [handle, setHandle] = useState('')
+  const inputs = useRef<Partial<Record<Source, HTMLInputElement | null>>>({})
+
+  // The field of the chosen option gets the focus once it starts opening.
+  useEffect(() => {
+    inputs.current[source]?.focus({ preventScroll: true })
+  }, [source])
 
   const target =
     source === 'website' && website.trim()
@@ -43,13 +49,22 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
     if (canContinue) onContinue({ source, target })
   }
 
+  /**
+   * The address field of an option. Always rendered, and opened or closed by
+   * height, so the card grows and shrinks smoothly instead of jumping; while
+   * closed it is inert (no focus, not announced).
+   */
   function detail(value: Source) {
-    if (value !== source) return null
-    if (value === 'website') {
-      return (
+    if (value === 'none') return null
+    const open = value === source
+    const field =
+      value === 'website' ? (
         <ButtonGroup aria-label="Indirizzo del sito">
           <ButtonGroupText>https://</ButtonGroupText>
           <Input
+            ref={(element) => {
+              inputs.current.website = element
+            }}
             aria-label="Indirizzo del sito"
             inputMode="url"
             autoComplete="url"
@@ -57,26 +72,27 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
             value={website}
             // Pasting a full URL keeps only what comes after the fixed prefix.
             onChange={(event) => setWebsite(event.target.value.replace(/^\s*https?:\/\//i, ''))}
-            autoFocus
           />
         </ButtonGroup>
-      )
-    }
-    if (value === 'instagram') {
-      return (
+      ) : (
         <ButtonGroup aria-label="Profilo Instagram">
           <ButtonGroupText>@</ButtonGroupText>
           <Input
+            ref={(element) => {
+              inputs.current.instagram = element
+            }}
             aria-label="Profilo Instagram"
             placeholder="tuaattivita"
             value={handle}
             onChange={(event) => setHandle(event.target.value.replace(/^\s*@/, ''))}
-            autoFocus
           />
         </ButtonGroup>
       )
-    }
-    return null
+    return (
+      <div className="reveal" data-open={open} inert={!open}>
+        <div className="reveal-inner">{field}</div>
+      </div>
+    )
   }
 
   return (
