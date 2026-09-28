@@ -1,11 +1,15 @@
 /* Page shell only. Components are styled by the design system, never here. */
 
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100dvh;
+}
+
 .chat {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  height: 100dvh;
-  max-width: 48rem;
-  margin: 0 auto;
+  min-height: 0;
 }
 
 .chat-header {
@@ -15,9 +19,41 @@
 
 .chat-log {
   overflow-y: auto;
-  padding: 1.5rem 1rem;
+  padding: 1.5rem max(1rem, calc((100% - 48rem) / 2));
 }
 
 .chat-composer {
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.75rem max(1rem, calc((100% - 48rem) / 2)) 1rem;
+}
+
+.profile-panel {
+  display: none;
+  overflow-y: auto;
+  padding: 1rem;
+  border-left: 1px solid var(--border);
+  background: var(--muted);
+}
+
+.sheet-body {
+  overflow-y: auto;
+  padding: 0 1rem 1rem;
+}
+
+.swatch {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 12%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 400px;
+  }
+  .profile-panel {
+    display: block;
+  }
+  .profile-toggle {
+    display: none;
+  }
 }

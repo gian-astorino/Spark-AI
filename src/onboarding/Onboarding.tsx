@@ -1,16 +1,10 @@
 import { useCallback, useState } from 'react'
 import { Box, Container } from '@skyground-media/pipelean-design-system'
 import { ChatStep } from './ChatStep.tsx'
-import { ImportStep } from './ImportStep.tsx'
 import { SourceStep } from './SourceStep.tsx'
 import type { ImportRequest } from './types.ts'
 
-type Step =
-  | { name: 'source' }
-  | { name: 'importing'; request: ImportRequest }
-  | { name: 'chat'; request: ImportRequest }
-
-const NO_IMPORT: ImportRequest = { source: 'none', target: '' }
+type Step = { name: 'source' } | { name: 'chat'; request: ImportRequest }
 
 export function Onboarding() {
   const [step, setStep] = useState<Step>({ name: 'source' })
@@ -23,19 +17,7 @@ export function Onboarding() {
   return (
     <Container size="sm">
       <Box paddingY={{ base: 6, md: 12 }}>
-        {step.name === 'source' ? (
-          <SourceStep
-            onContinue={(request) =>
-              request.source === 'none' ? toChat(request) : setStep({ name: 'importing', request })
-            }
-          />
-        ) : (
-          <ImportStep
-            request={step.request}
-            onDone={() => toChat(step.request)}
-            onSkip={() => toChat(NO_IMPORT)}
-          />
-        )}
+        <SourceStep onContinue={toChat} />
       </Box>
     </Container>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
   AvatarFallback,
@@ -12,46 +12,55 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
   ItemTitle,
   Message,
   MessageAvatar,
   MessageContent,
   MessageGroup,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
   Spinner,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { ArrowLeft02Icon, ArrowUp02Icon } from '@hugeicons/core-free-icons'
+import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/core-free-icons'
 import { Icon } from './Icon.tsx'
-import { AFTER_FINDINGS, FOLLOW_UPS, mockFindings, openingLines, type Finding } from './script.ts'
-import type { ImportRequest } from './types.ts'
+import { ImportMarker } from './ImportMarker.tsx'
+import { ProfilePanel } from './ProfilePanel.tsx'
+import { mockProfile } from './profile.ts'
+import { AFTER_IMPORT, AFTER_SKIP, FOLLOW_UPS, openingLine } from './script.ts'
+import { displayUrl, type ImportRequest } from './types.ts'
+import { useImport } from './useImport.ts'
 
 type Entry =
-  | { id: number; from: 'agent'; text: string }
-  | { id: number; from: 'agent'; findings: Finding[] }
-  | { id: number; from: 'user'; text: string }
+  | { id: number; from: 'agent' | 'user'; text: string }
+  | { id: number; from: 'import' }
 
 const REPLY_MS = 900
 let nextId = 0
 
-function initialEntries(request: ImportRequest): Entry[] {
-  const entries: Entry[] = openingLines(request).map((text) => ({ id: nextId++, from: 'agent', text }))
-  if (request.source !== 'none' && request.target) {
-    entries.push({ id: nextId++, from: 'agent', findings: mockFindings(request) })
-    entries.push({ id: nextId++, from: 'agent', text: AFTER_FINDINGS })
-  }
-  return entries
-}
-
 export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: () => void }) {
-  const [entries, setEntries] = useState<Entry[]>(() => initialEntries(request))
+  const importing = useImport(request)
+  const profile = useMemo(() => mockProfile(request), [request])
+  const [entries, setEntries] = useState<Entry[]>(() => [
+    { id: nextId++, from: 'agent', text: openingLine(request) },
+    ...(request.source === 'none' ? [] : [{ id: nextId++, from: 'import' as const }]),
+  ])
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const followUp = useRef(0)
   const end = useRef<HTMLDivElement>(null)
+
+  // The agent speaks once the import settles, either way.
+  useEffect(() => {
+    if (importing.status === 'done' || importing.status === 'skipped') {
+      const text = importing.status === 'done' ? AFTER_IMPORT : AFTER_SKIP
+      setEntries((current) => [...current, { id: nextId++, from: 'agent', text }])
+    }
+  }, [importing.status])
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -71,132 +80,155 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     }, REPLY_MS)
   }
 
-  const imported = request.source !== 'none' && request.target
-  const showQuickReplies = imported && !entries.some((entry) => entry.from === 'user')
+  const label = request.source === 'instagram' ? `@${request.target}` : displayUrl(request.target)
+  const busy = thinking || importing.status === 'running'
+  const showQuickReplies = importing.status === 'done' && !entries.some((entry) => entry.from === 'user')
+  const panel = <ProfilePanel profile={profile} sectionState={importing.sectionState} />
 
   return (
-    <div className="chat">
-      <header className="chat-header">
-        <Inline gap={2} align="center">
-          <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
-            <Icon icon={ArrowLeft02Icon} />
-          </Button>
-          <Avatar size="sm">
-            <AvatarFallback>S</AvatarFallback>
-          </Avatar>
-          <ItemTitle>Spark</ItemTitle>
-          <Badge variant="secondary">Onboarding</Badge>
-        </Inline>
-      </header>
+    <div className="workspace">
+      <div className="chat">
+        <header className="chat-header">
+          <Inline gap={2} align="center" justify="between">
+            <Inline gap={2} align="center">
+              <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
+                <Icon icon={ArrowLeft02Icon} />
+              </Button>
+              <Avatar size="sm">
+                <AvatarFallback>S</AvatarFallback>
+              </Avatar>
+              <ItemTitle>Spark</ItemTitle>
+              <Badge variant="secondary">Onboarding</Badge>
+            </Inline>
+            <span className="profile-toggle">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Icon icon={SidebarRightIcon} />
+                    Business profile
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right">
+                  <SheetHeader>
+                    <SheetTitle>Business profile</SheetTitle>
+                    <SheetDescription>What Spark knows so far.</SheetDescription>
+                  </SheetHeader>
+                  <div className="sheet-body">{panel}</div>
+                </SheetContent>
+              </Sheet>
+            </span>
+          </Inline>
+        </header>
 
-      <main className="chat-log">
-        <MessageGroup>
-          {entries.map((entry) =>
-            entry.from === 'user' ? (
-              <Message key={entry.id} align="end">
-                <MessageContent>
-                  <BubbleGroup>
-                    <Bubble align="end">
-                      <BubbleContent>{entry.text}</BubbleContent>
-                    </Bubble>
-                  </BubbleGroup>
-                </MessageContent>
-              </Message>
-            ) : (
-              <Message key={entry.id}>
+        <main className="chat-log">
+          <MessageGroup>
+            {entries.map((entry) =>
+              entry.from === 'user' ? (
+                <Message key={entry.id} align="end">
+                  <MessageContent>
+                    <BubbleGroup>
+                      <Bubble align="end">
+                        <BubbleContent>{entry.text}</BubbleContent>
+                      </Bubble>
+                    </BubbleGroup>
+                  </MessageContent>
+                </Message>
+              ) : (
+                <Message key={entry.id}>
+                  <MessageAvatar>
+                    <Avatar size="sm">
+                      <AvatarFallback>S</AvatarFallback>
+                    </Avatar>
+                  </MessageAvatar>
+                  <MessageContent>
+                    {entry.from === 'import' ? (
+                      <ImportMarker
+                        label={label}
+                        status={importing.status}
+                        sectionState={importing.sectionState}
+                        onSkip={importing.skip}
+                      />
+                    ) : (
+                      <Bubble variant="muted">
+                        <BubbleContent>{entry.text}</BubbleContent>
+                      </Bubble>
+                    )}
+                  </MessageContent>
+                </Message>
+              ),
+            )}
+            {thinking && (
+              <Message>
                 <MessageAvatar>
                   <Avatar size="sm">
                     <AvatarFallback>S</AvatarFallback>
                   </Avatar>
                 </MessageAvatar>
                 <MessageContent>
-                  {'findings' in entry ? (
-                    <ItemGroup>
-                      {entry.findings.map((finding) => (
-                        <Item key={finding.label} variant="outline" size="sm">
-                          <ItemContent>
-                            <ItemDescription>{finding.label}</ItemDescription>
-                            <ItemTitle>{finding.value}</ItemTitle>
-                          </ItemContent>
-                        </Item>
-                      ))}
-                    </ItemGroup>
-                  ) : (
-                    <Bubble variant="muted">
-                      <BubbleContent>{entry.text}</BubbleContent>
-                    </Bubble>
-                  )}
+                  <Bubble variant="muted">
+                    <BubbleContent>
+                      <Spinner aria-label="Spark is typing" />
+                    </BubbleContent>
+                  </Bubble>
                 </MessageContent>
               </Message>
-            ),
-          )}
-          {thinking && (
-            <Message>
-              <MessageAvatar>
-                <Avatar size="sm">
-                  <AvatarFallback>S</AvatarFallback>
-                </Avatar>
-              </MessageAvatar>
-              <MessageContent>
-                <Bubble variant="muted">
-                  <BubbleContent>
-                    <Spinner aria-label="Spark is typing" />
-                  </BubbleContent>
-                </Bubble>
-              </MessageContent>
-            </Message>
-          )}
-        </MessageGroup>
-        <div ref={end} />
-      </main>
+            )}
+          </MessageGroup>
+          <div ref={end} />
+        </main>
 
-      <footer className="chat-composer">
-        <Stack gap={3}>
-          {showQuickReplies && (
-            <Inline gap={2}>
-              <Button variant="outline" size="sm" onClick={() => send('Looks right.')}>
-                Looks right
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => send("Some of this is off, let me fix it.")}>
-                Some of this is off
-              </Button>
-            </Inline>
-          )}
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              send(draft)
-            }}
-          >
-            <InputGroup>
-              <InputGroupTextarea
-                placeholder="Tell Spark more about your business…"
-                value={draft}
-                rows={1}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault()
-                    send(draft)
-                  }
-                }}
-                autoFocus
-              />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
+        <footer className="chat-composer">
+          <Stack gap={3}>
+            {showQuickReplies && (
+              <Inline gap={2}>
+                <Button variant="outline" size="sm" onClick={() => send('Looks right.')}>
+                  Looks right
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => send('Some of this is off, let me fix it.')}>
+                  Some of this is off
+                </Button>
+              </Inline>
+            )}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                send(draft)
+              }}
+            >
+              <InputGroup>
+                <InputGroupTextarea
+                  placeholder="Tell Spark more about your business…"
+                  value={draft}
+                  rows={1}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault()
+                      send(draft)
+                    }
+                  }}
+                  autoFocus
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
                     type="submit"
                     size="icon-sm"
                     variant="default"
                     aria-label="Send"
-                    disabled={!draft.trim() || thinking}
+                    disabled={!draft.trim() || busy}
                   >
                     <Icon icon={ArrowUp02Icon} />
                   </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-          </form>
-        </Stack>
-      </footer>
+                </InputGroupAddon>
+              </InputGroup>
+            </form>
+          </Stack>
+        </footer>
+      </div>
+
+      <aside className="profile-panel" aria-label="Business profile">
+        {panel}
+      </aside>
     </div>
   )
 }

@@ -1,36 +1,19 @@
-import { displayUrl, type ImportRequest } from './types.ts'
+import type { ImportRequest } from './types.ts'
 
 // Mock conversation. The real agent replaces all of this.
 
-export interface Finding {
-  label: string
-  value: string
-}
-
-export function mockFindings(request: ImportRequest): Finding[] {
-  return [
-    { label: 'Business', value: 'Independent skincare studio in Milan' },
-    { label: 'Offer', value: 'Facial treatments, peels, seasonal packages' },
-    { label: 'Audience', value: 'Women 28–50, local, repeat clients' },
-    {
-      label: 'Tone',
-      value: request.source === 'instagram' ? 'Warm, visual, lots of before/after' : 'Warm, expert, reassuring',
-    },
-  ]
-}
-
-export function openingLines(request: ImportRequest): string[] {
-  if (request.source === 'none' || !request.target) {
-    return [
-      "Hi, I'm Spark. No website needed: we'll build the picture together.",
-      "Let's start simple: what's your business called, and what do you do?",
-    ]
+export function openingLine(request: ImportRequest): string {
+  if (request.source === 'none') {
+    return "Hi, I'm Spark. No website needed: we'll build the picture together. What's your business called, and what do you do?"
   }
-  const where = request.source === 'instagram' ? `@${request.target} on Instagram` : displayUrl(request.target)
-  return [`Hi, I'm Spark. I went through ${where}. Here's what I picked up:`]
+  return "Hi, I'm Spark. Give me a moment while I read what you have online."
 }
 
-export const AFTER_FINDINGS = 'Did I get it right? Correct anything that is off, or add what I missed.'
+export const AFTER_IMPORT =
+  "Done. Everything I found is in the panel on the right. Did I get it right? Correct anything that's off, or add what I missed."
+
+export const AFTER_SKIP =
+  "No problem, let's do it by chat. What's your business called, and what do you do?"
 
 export const FOLLOW_UPS = [
   'Got it. Who is your ideal customer? The more specific, the better.',
