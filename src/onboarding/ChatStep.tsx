@@ -11,10 +11,6 @@ import {
   BubbleContent,
   Button,
   Inline,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
   Message,
   MessageAvatar,
   MessageContent,
@@ -97,6 +93,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const [files, setFiles] = useState<PickedFile[]>([])
   const [editing, setEditing] = useState<Editing | null>(null)
   const picker = useRef<HTMLInputElement>(null)
+  const composer = useRef<HTMLTextAreaElement>(null)
   // Agent turns in flight: the typing indicator shows while any is.
   const [pending, setPending] = useState(0)
   const end = useRef<HTMLDivElement>(null)
@@ -225,6 +222,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     const attached = files
     setEntries((current) => [...current, { id: nextId++, from: 'user', text: message, files: attached }])
     setDraft('')
+    if (composer.current) composer.current.style.height = ''
     setFiles([])
 
     // Files go to the agent, whatever the text says.
@@ -397,23 +395,29 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                   event.target.value = ''
                 }}
               />
-              <InputGroup>
-                <InputGroupAddon align="inline-start">
-                  <InputGroupButton
-                    size="icon-sm"
-                    aria-label="Allega immagini o PDF"
-                    title="Allega immagini o PDF: un listino, il logo, delle foto"
-                    onClick={() => picker.current?.click()}
-                    disabled={files.length >= MAX_FILES}
-                  >
-                    <Icon icon={Attachment02Icon} />
-                  </InputGroupButton>
-                </InputGroupAddon>
-                <InputGroupTextarea
+              {/* Spark's composer: a raised card on one line, the DS buttons at its ends. */}
+              <div className="composer">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  aria-label="Allega immagini o PDF"
+                  title="Allega immagini o PDF: un listino, il logo, delle foto"
+                  onClick={() => picker.current?.click()}
+                  disabled={files.length >= MAX_FILES}
+                >
+                  <Icon icon={Attachment02Icon} />
+                </Button>
+                <textarea
+                  className="composer-input"
+                  aria-label="Messaggio per Spark"
                   placeholder="Rispondi a Spark, oppure allega un listino, il logo, delle foto…"
                   value={draft}
                   rows={1}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    setDraft(event.target.value)
+                    grow(event.target)
+                  }}
                   onPaste={(event) => {
                     if (event.clipboardData.files.length > 0) {
                       event.preventDefault()
@@ -426,20 +430,19 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                       send(draft)
                     }
                   }}
+                  ref={composer}
                   autoFocus
                 />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    type="submit"
-                    size="icon-sm"
-                    variant="default"
-                    aria-label="Invia"
-                    disabled={(!draft.trim() && files.length === 0) || busy}
-                  >
-                    <Icon icon={ArrowUp02Icon} />
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  size="icon"
+                  aria-label="Invia"
+                  disabled={(!draft.trim() && files.length === 0) || busy}
+                >
+                  <Icon icon={ArrowUp02Icon} />
+                </Button>
+              </div>
             </form>
           </Stack>
         </footer>
@@ -492,4 +495,10 @@ function SentFiles({ files }: { files: PickedFile[] }) {
       )}
     </>
   )
+}
+
+/** One line to start with, growing with the text up to five, then scrolling. */
+function grow(textarea: HTMLTextAreaElement) {
+  textarea.style.height = ''
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 5 * 24)}px`
 }
