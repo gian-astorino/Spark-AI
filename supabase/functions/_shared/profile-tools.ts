@@ -1,7 +1,7 @@
 import type OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PREVIEW_CRAWLER } from './firecrawl.ts'
-import { regenerateLogo } from './logo.ts'
+import { requestLogoRefresh } from './logo.ts'
 import { addressKey, key } from './matching.ts'
 
 // The hands of both models, the chat agent and the import research: every
@@ -391,7 +391,7 @@ export async function runTool(
       const logoPath = `${businessId}/logo.${extension}`
       await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
       await check(db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, source: ctx.source }))
-      EdgeRuntime.waitUntil(regenerateLogo(db, businessId))
+      requestLogoRefresh(businessId)
       return LOGO_SAVED
     }
 
@@ -450,7 +450,7 @@ export async function runTool(
       await check(
         db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, logo_source_url: url, source: ctx.source }),
       )
-      EdgeRuntime.waitUntil(regenerateLogo(db, businessId))
+      requestLogoRefresh(businessId)
       return LOGO_SAVED
     }
 

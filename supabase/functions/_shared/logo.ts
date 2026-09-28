@@ -22,66 +22,109 @@ const REDRAW = [
 ].join(' ')
 
 /**
- * Redraws the business's current logo and replaces the brand colours with the
- * logo's. Keeps the original next to it. Never throws: a logo that cannot be
- * redrawn stays as it was.
+ * Asks the `logo` function to refresh the business's logo. The work runs
+ * there, in a request of its own, so it never races the caller's time limit.
  */
-export async function regenerateLogo(db: SupabaseClient, businessId: string) {
-  try {
-    const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
-    if (!brand?.logo_path) return
-    const { data: file } = await db.storage.from('logos').download(brand.logo_path)
-    if (!file) return
+export function requestLogoRefresh(businessId: string) {
+  EdgeRuntime.waitUntil(
+    fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/logo`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ business_id: businessId }),
+    }).catch((failure) => console.error('Logo refresh request failed', failure)),
+  )
+}
 
+/**
+ * The colours first, from the logo as it is: fast, and they arrive even if
+ * the redraw fails. Then the square high-resolution version. The original is
+ * kept next to it; any failure is written to brand_profiles.logo_error.
+ */
+export async function refreshLogo(db: SupabaseClient, businessId: string) {
+  const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
+  if (!brand?.logo_path) return
+  // Already a redrawn logo: nothing to do.
+  if (/\/logo-(hd\.png|square\.svg)$/.test(brand.logo_path)) return
+
+  const failures: string[] = []
+  try {
+    const { data: file } = await db.storage.from('logos').download(brand.logo_path)
+    if (!file) throw new Error(`Logo not found in storage: ${brand.logo_path}`)
     const isSvg = file.type.includes('svg') || brand.logo_path.endsWith('.svg')
-    const original = `${businessId}/original.${isSvg ? 'svg' : (brand.logo_path.split('.').pop() ?? 'png')}`
+    const extension = isSvg ? 'svg' : (brand.logo_path.split('.').pop() ?? 'png')
+    const original = `${businessId}/original.${extension}`
     await db.storage.from('logos').upload(original, file, { contentType: file.type, upsert: true })
 
-    let logoPath: string
-    let colors: string[]
-    if (isSvg) {
-      const svg = await file.text()
-      logoPath = `${businessId}/logo-square.svg`
-      await db.storage.from('logos').upload(logoPath, new Blob([squareSvg(svg)], { type: 'image/svg+xml' }), {
-        contentType: 'image/svg+xml',
-        upsert: true,
-      })
-      colors = svgColors(svg)
-    } else {
-      const redrawn = await openai.images.edit({
-        model: IMAGE_MODEL,
-        image: await toFile(file, `logo.${original.split('.').pop()}`, { type: file.type }),
-        prompt: REDRAW,
-        size: '1024x1024',
-        quality: 'high',
-        input_fidelity: 'high',
-        background: 'transparent',
-        output_format: 'png',
-      })
-      const b64 = redrawn.data?.[0]?.b64_json
-      if (!b64) throw new Error('The image model returned no image')
-      logoPath = `${businessId}/logo-hd.png`
-      const png = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0))
-      await db.storage.from('logos').upload(logoPath, png, { contentType: 'image/png', upsert: true })
-      colors = await imageColors(db, logoPath)
+    // 1. Colours, from the original.
+    try {
+      const colors = isSvg ? svgColors(await file.text()) : await imageColors(db, original)
+      await saveColors(db, businessId, colors)
+    } catch (failure) {
+      failures.push(`colours: ${String(failure)}`)
     }
 
-    await db.from('brand_profiles').update({ logo_path: logoPath }).eq('business_id', businessId)
-    if (colors.length > 0) {
-      await db.from('brand_colors').delete().eq('business_id', businessId)
-      await db.from('brand_colors').insert(
-        colors.slice(0, 3).map((hex, position) => ({
-          business_id: businessId,
-          name: ['Primary', 'Secondary', 'Accent'][position],
-          hex,
-          position,
-          source: 'import',
-        })),
-      )
+    // 2. The square, high-resolution logo.
+    try {
+      const logoPath = isSvg ? await squareSvgLogo(db, businessId, await file.text()) : await redraw(db, businessId, file, extension)
+      await db.from('brand_profiles').update({ logo_path: logoPath }).eq('business_id', businessId)
+    } catch (failure) {
+      failures.push(`redraw: ${String(failure)}`)
     }
   } catch (failure) {
-    console.error('Logo regeneration failed', failure)
+    failures.push(String(failure))
   }
+  await db
+    .from('brand_profiles')
+    .update({ logo_error: failures.length ? failures.join(' | ').slice(0, 2000) : null })
+    .eq('business_id', businessId)
+}
+
+async function saveColors(db: SupabaseClient, businessId: string, colors: string[]) {
+  if (colors.length === 0) throw new Error('No colours found in the logo')
+  await db.from('brand_colors').delete().eq('business_id', businessId)
+  await db.from('brand_colors').insert(
+    colors.slice(0, 3).map((hex, position) => ({
+      business_id: businessId,
+      name: ['Primary', 'Secondary', 'Accent'][position],
+      hex,
+      position,
+      source: 'import',
+    })),
+  )
+}
+
+async function squareSvgLogo(db: SupabaseClient, businessId: string, svg: string) {
+  const path = `${businessId}/logo-square.svg`
+  await db.storage
+    .from('logos')
+    .upload(path, new Blob([squareSvg(svg)], { type: 'image/svg+xml' }), { contentType: 'image/svg+xml', upsert: true })
+  return path
+}
+
+/**
+ * The image model redraws the logo. Transparent background and high input
+ * fidelity are asked for; a model that refuses either gets the plain request.
+ */
+async function redraw(db: SupabaseClient, businessId: string, file: Blob, extension: string) {
+  const image = await toFile(file, `logo.${extension}`, { type: file.type })
+  const base = { model: IMAGE_MODEL, image, prompt: REDRAW, size: '1024x1024', quality: 'high', output_format: 'png' } as const
+  let result: OpenAI.Images.ImagesResponse
+  try {
+    result = await openai.images.edit({ ...base, background: 'transparent', input_fidelity: 'high' })
+  } catch (failure) {
+    if (!(failure instanceof OpenAI.BadRequestError)) throw failure
+    console.warn('Redraw without transparent background / input fidelity:', failure.message)
+    result = await openai.images.edit({ ...base, image: await toFile(file, `logo.${extension}`, { type: file.type }) })
+  }
+  const b64 = result.data?.[0]?.b64_json
+  if (!b64) throw new Error('The image model returned no image')
+  const path = `${businessId}/logo-hd.png`
+  const png = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0))
+  await db.storage.from('logos').upload(path, png, { contentType: 'image/png', upsert: true })
+  return path
 }
 
 /** The SVG centred on a square canvas, with 10% padding. */
@@ -123,7 +166,7 @@ function svgColors(svg: string): string[] {
   return picked
 }
 
-/** The brand colours of a raster logo, as the vision model reads them. */
+/** The brand colours of a raster logo, as the vision model reads them. SVG and HEIC are not readable. */
 async function imageColors(db: SupabaseClient, path: string): Promise<string[]> {
   const { data } = await db.storage.from('logos').createSignedUrl(path, 10 * 60)
   if (!data) return []

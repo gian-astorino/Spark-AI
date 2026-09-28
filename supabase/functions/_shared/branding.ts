@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Branding } from './firecrawl.ts'
-import { regenerateLogo } from './logo.ts'
+import { requestLogoRefresh } from './logo.ts'
 
 // Branding from a business's own home page: logo and fonts. The brand
 // colours are then read from the logo (see logo.ts).
@@ -67,7 +67,7 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
     source: 'import',
   })
   // The brand colours come from the logo, not from the site's CSS.
-  if (logo) EdgeRuntime.waitUntil(regenerateLogo(db, businessId))
+  if (logo) requestLogoRefresh(businessId)
 }
 
 /** Copies the logo into our own storage: the site may change or disappear. */
