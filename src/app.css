@@ -127,7 +127,7 @@
   grid-template-rows: auto 1fr auto;
   min-height: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl-spark);
+  border-radius: var(--radius-lg-spark); /* 12px */
   background: var(--background);
   overflow: hidden;
 }
@@ -152,7 +152,7 @@
   display: none;
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl-spark);
+  border-radius: var(--radius-lg-spark); /* 12px */
   background: var(--background);
 }
 
