@@ -9,6 +9,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  EmptyMedia,
   Field,
   FieldContent,
   FieldDescription,
@@ -16,7 +17,6 @@ import {
   FieldTitle,
   Inline,
   Input,
-  ItemMedia,
   RadioGroup,
   RadioGroupItem,
   Stack,
@@ -116,9 +116,10 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
               {OPTIONS.map((option) => (
                 <FieldLabel key={option.value} htmlFor={`source-${option.value}`}>
                   <Field orientation="horizontal">
-                    <ItemMedia variant="icon">
-                      <Icon icon={option.icon} />
-                    </ItemMedia>
+                    {/* EmptyMedia borrowed for its grey tile: the DS has no media container for this yet. */}
+                    <EmptyMedia variant="icon">
+                      <Icon icon={option.icon} size={20} />
+                    </EmptyMedia>
                     <FieldContent>
                       <FieldTitle>{option.title}</FieldTitle>
                       <FieldDescription>{option.description}</FieldDescription>
