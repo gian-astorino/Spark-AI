@@ -6,7 +6,7 @@
 // Realtime while the work runs in the background.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { extract } from '../_shared/claude.ts'
+import { extract, pagesAsInput } from '../_shared/llm.ts'
 import { scrape, type Branding, type ScrapedPage } from '../_shared/firecrawl.ts'
 import { ExtractedProfile, PagePicks } from '../_shared/profile-schema.ts'
 
@@ -70,17 +70,18 @@ async function runImport(db: SupabaseClient, businessId: string, jobId: string, 
   // 1. The home page, with its links and Firecrawl's branding analysis.
   const home = await scrape(url, true)
 
-  // 2. Claude picks the pages worth reading from the site's own links.
+  // 2. The model picks the pages worth reading from the site's own links.
   const origin = new URL(home.url).origin
   const candidates = [...new Set(home.links)].filter((link) => link.startsWith(origin) && link !== home.url)
   let extra: ScrapedPage[] = []
   if (candidates.length > 0) {
     const picks = await extract({
+      name: 'page_picks',
       schema: PagePicks,
       effort: 'low',
-      system:
+      instructions:
         'You choose which pages of a local business website to read. Prefer pages about services or treatments, prices, opening hours, contacts and locations, and the team. Return at most 6 URLs, only from the list given.',
-      content: [{ type: 'text', text: candidates.join('\n') }],
+      input: candidates.join('\n'),
     })
     const chosen = picks.urls.filter((link) => candidates.includes(link)).slice(0, MAX_EXTRA_PAGES)
     // A page that fails to load is skipped, not fatal: the rest is still useful.
@@ -95,18 +96,14 @@ async function runImport(db: SupabaseClient, businessId: string, jobId: string, 
 
   // 3. One extraction over every page.
   const profile = await extract({
+    name: 'business_profile',
     schema: ExtractedProfile,
-    system: [
+    instructions: [
       'You extract a business profile from the pages of its website, for a booking and marketing assistant.',
       'Only use what the pages say. When something is not stated, return null or an empty list: never guess prices, durations or hours.',
       'Keep names and descriptions in the language of the site.',
     ].join(' '),
-    content: pages.map((page) => ({
-      type: 'document' as const,
-      source: { type: 'text' as const, media_type: 'text/plain' as const, data: page.markdown },
-      title: page.title ?? page.url,
-      context: page.url,
-    })),
+    input: pagesAsInput(pages),
   })
 
   // 4. Write section by section, so the panel fills in as each one lands.

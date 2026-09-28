@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// What Claude extracts from the website. Mirrors the profile tables; anything
+// What the model extracts from the website. Mirrors the profile tables; anything
 // the site does not say is null or an empty list, never invented.
 
 const Hours = z.object({
@@ -38,22 +38,3 @@ export type ExtractedProfile = z.infer<typeof ExtractedProfile>
 export const PagePicks = z.object({
   urls: z.array(z.string()).describe('At most 6 URLs, most useful first'),
 })
-
-/**
- * JSON Schema for `output_config.format`, from the same Zod source. Drops the
- * `$schema` tag and the safe-integer bounds Zod adds to every `.int()`.
- */
-export function jsonSchema(schema: z.ZodType): Record<string, unknown> {
-  const strip = (node: unknown): unknown => {
-    if (Array.isArray(node)) return node.map(strip)
-    if (node && typeof node === 'object') {
-      return Object.fromEntries(
-        Object.entries(node)
-          .filter(([key]) => key !== '$schema' && key !== 'minimum' && key !== 'maximum')
-          .map(([key, value]) => [key, strip(value)]),
-      )
-    }
-    return node
-  }
-  return strip(z.toJSONSchema(schema)) as Record<string, unknown>
-}
