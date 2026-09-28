@@ -15,7 +15,8 @@
     "@skyground-media/pipelean-design-system": "file:vendor/skyground-media-pipelean-design-system-0.0.0.tgz",
     "@supabase/supabase-js": "^2.117.2",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

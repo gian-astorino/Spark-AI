@@ -36,7 +36,7 @@ const SECTION_ICONS: Record<Section, IconSvgElement> = {
 const EMPTY_HINT: Record<Section, string> = {
   business: 'Name, what you do and your sector.',
   location: 'Address and opening hours.',
-  branding: 'Logo, colours and tone of voice.',
+  branding: 'Logo, colours, fonts, tone of voice and photos. You can attach them in the chat.',
   catalog: 'Treatments with description, price and duration.',
   calendar: "Your team and the calendar you use. Spark will ask in the chat.",
 }
@@ -128,7 +128,8 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
         </Stack>
       )
     case 'branding': {
-      const b = profile.branding!
+      // Photos alone make the section ready, without any branding from a site.
+      const b = profile.branding ?? { colors: [], fonts: [], tone: [] }
       return (
         <Stack gap={4}>
           {b.logoUrl && (
@@ -158,6 +159,16 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
               {b.fonts.map((font) => (
                 <FontSample key={font.role} role={font.role} family={font.family} />
               ))}
+            </Stack>
+          )}
+          {profile.photos && profile.photos.length > 0 && (
+            <Stack gap={2}>
+              <ItemDescription>Photos</ItemDescription>
+              <div className="photos">
+                {profile.photos.map((photo) => (
+                  <img key={photo.url} src={photo.url} alt={photo.caption ?? 'Photo of the business'} title={photo.caption} />
+                ))}
+              </div>
             </Stack>
           )}
           {b.tone.length > 0 && (

@@ -26,6 +26,7 @@ export interface Profile {
     fonts: { role: 'heading' | 'body'; family: string }[]
     tone: string[]
   }
+  photos?: { url: string; caption?: string }[]
   catalog?: { name: string; description?: string; category?: string; price?: string; duration?: string }[]
   calendar?: { members?: string[]; tool?: string }
 }
@@ -37,7 +38,12 @@ export function hasSection(profile: Profile, section: Section) {
     case 'location':
       return (profile.locations?.length ?? 0) > 0
     case 'branding':
-      return !!(profile.branding?.logoUrl || profile.branding?.colors.length || profile.branding?.fonts.length)
+      return !!(
+        profile.branding?.logoUrl ||
+        profile.branding?.colors.length ||
+        profile.branding?.fonts.length ||
+        profile.photos?.length
+      )
     case 'catalog':
       return (profile.catalog?.length ?? 0) > 0
     case 'calendar':

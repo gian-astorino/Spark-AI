@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** The profile as the model reads it: compact, and explicit about gaps. */
 export async function snapshot(db: SupabaseClient, businessId: string) {
-  const [business, locations, brand, colors, catalog, team, calendar] = await Promise.all([
+  const [business, locations, brand, colors, catalog, team, calendar, photos] = await Promise.all([
     db.from('businesses').select('name, description, sector, website_url').eq('id', businessId).single(),
     db.from('locations').select('name, address, opening_hours(weekday, opens_at, closes_at)').eq('business_id', businessId),
     db.from('brand_profiles').select('logo_path, fonts, tone_of_voice').eq('business_id', businessId).maybeSingle(),
@@ -10,6 +10,7 @@ export async function snapshot(db: SupabaseClient, businessId: string) {
     db.from('catalog_items').select('name, category, price_cents, duration_minutes, description').eq('business_id', businessId).order('position'),
     db.from('team_members').select('display_name').eq('business_id', businessId).order('position'),
     db.from('calendar_setups').select('provider, provider_label').eq('business_id', businessId).maybeSingle(),
+    db.from('business_media').select('id', { count: 'exact', head: true }).eq('business_id', businessId),
   ])
   const missing = '(missing)'
   const b = business.data
@@ -28,6 +29,7 @@ export async function snapshot(db: SupabaseClient, businessId: string) {
     `Logo: ${brand.data?.logo_path ? 'yes' : missing}`,
     `Brand colours: ${colors.data?.length ? colors.data.map((c) => `${c.name} ${c.hex}`).join(', ') : missing}`,
     `Fonts: ${(brand.data?.fonts as { role: string; family: string }[] | undefined)?.map((f) => `${f.role} ${f.family}`).join(', ') || missing}`,
+    `Photos kept: ${photos.count ?? 0}`,
     `Tone of voice: ${brand.data?.tone_of_voice?.length ? brand.data.tone_of_voice.join(', ') : missing}`,
     `Catalog (${catalog.data?.length ?? 0} items):${catalog.data?.length ? '' : ` ${missing}`}`,
     ...(catalog.data ?? []).map(

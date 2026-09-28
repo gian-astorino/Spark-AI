@@ -63,6 +63,12 @@ text), saves what the owner says through strict function tools
 (`update_business`, `set_location`, `save_catalog_items`, `set_team`,
 `set_calendar`, `set_tone_of_voice`, …) and answers `{ reply, choices }`.
 
+The owner can attach images and PDFs (price lists, a sign with the hours,
+their logo, photos). They are uploaded to the private `uploads` bucket, one
+folder per business, and passed to the model through short-lived signed URLs.
+The model extracts what they state with the usual tools, and can keep an
+image with `set_logo` (copied into `logos/`) or `add_photos` (`business_media`).
+
 The conversation continues from `conversations.last_response_id`; `messages`
 keeps our own transcript. Links pasted in the chat are read by the app
 (an additive import), then reported to the agent as an event.

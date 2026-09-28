@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentTitle,
   Bubble,
   BubbleContent,
   Button,
@@ -21,8 +28,24 @@ import {
   Spinner,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/core-free-icons'
-import { askAgent, checkImport, createBusiness, loadProfile, startImport } from './backend.ts'
+import {
+  ArrowLeft02Icon,
+  ArrowUp02Icon,
+  Attachment01Icon,
+  Cancel01Icon,
+  Pdf01Icon,
+  SidebarRightIcon,
+} from '@hugeicons/core-free-icons'
+import {
+  askAgent,
+  checkImport,
+  createBusiness,
+  loadProfile,
+  startImport,
+  uploadAttachment,
+  type AgentTurn,
+} from './backend.ts'
+import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
 import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
@@ -31,9 +54,20 @@ import { EVENTS, WAITING, findLink } from './script.ts'
 import { SparkMark } from './SparkMark.tsx'
 import { displayUrl, type ImportRequest } from './types.ts'
 
+/** A file picked in the composer, before or while it is sent. */
+interface PickedFile {
+  id: number
+  file: File
+  /** Object URL for the preview; PDFs show an icon instead. */
+  preview: string
+}
+
+const ACCEPTED = 'image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf'
+const MAX_FILES = 6
+
 type Entry =
   | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
-  | { id: number; from: 'user'; text: string }
+  | { id: number; from: 'user'; text: string; files?: PickedFile[] }
   | { id: number; from: 'import'; job: string }
 
 interface Job {
@@ -57,6 +91,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const [jobs, setJobs] = useState<Record<string, Job>>({})
   const [profile, setProfile] = useState<Profile>({})
   const [draft, setDraft] = useState('')
+  const [files, setFiles] = useState<PickedFile[]>([])
+  const picker = useRef<HTMLInputElement>(null)
   // Agent turns in flight: the typing indicator shows while any is.
   const [pending, setPending] = useState(0)
   const end = useRef<HTMLDivElement>(null)
@@ -79,7 +115,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   }
 
   /** One agent turn; its reply joins the conversation and the panel catches up. */
-  async function agentTurn(turn: { message: string } | { event: string }) {
+  async function agentTurn(turn: AgentTurn) {
     setPending((count) => count + 1)
     try {
       const { reply, choices } = await askAgent(await businessId(), turn)
@@ -167,11 +203,42 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     return siteRunning && section !== 'calendar' ? 'loading' : 'empty'
   }
 
+  function pick(list: FileList | File[] | null) {
+    const accepted = [...(list ?? [])].filter((file) => ACCEPTED.split(',').includes(file.type))
+    setFiles((current) =>
+      [...current, ...accepted.map((file) => ({ id: nextId++, file, preview: URL.createObjectURL(file) }))].slice(0, MAX_FILES),
+    )
+  }
+
+  function unpick(id: number) {
+    setFiles((current) => current.filter((item) => item.id !== id))
+  }
+
   function send(text: string) {
     const message = text.trim()
-    if (!message || pending > 0) return
-    setEntries((current) => [...current, { id: nextId++, from: 'user', text: message }])
+    if ((!message && files.length === 0) || pending > 0) return
+    const attached = files
+    setEntries((current) => [...current, { id: nextId++, from: 'user', text: message, files: attached }])
     setDraft('')
+    setFiles([])
+
+    // Files go to the agent, whatever the text says.
+    if (attached.length > 0) {
+      void (async () => {
+        setPending((count) => count + 1)
+        try {
+          const id = await businessId()
+          const paths = await Promise.all(attached.map((item) => uploadAttachment(id, item.file)))
+          await agentTurn({ message, attachments: paths })
+        } catch (error) {
+          console.error(error)
+          setEntries((list) => [...list, say("I couldn't upload those files. Try again, or with smaller ones.")])
+        } finally {
+          setPending((count) => count - 1)
+        }
+      })()
+      return
+    }
 
     // A link is a source for the app to read; the agent hears about it after.
     const link = findLink(message)
@@ -222,9 +289,12 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
               entry.from === 'user' ? (
                 <Message key={entry.id} align="end">
                   <MessageContent>
-                    <Bubble align="end">
-                      <BubbleContent>{entry.text}</BubbleContent>
-                    </Bubble>
+                    {entry.files && entry.files.length > 0 && <SentFiles files={entry.files} />}
+                    {entry.text && (
+                      <Bubble align="end">
+                        <BubbleContent>{entry.text}</BubbleContent>
+                      </Bubble>
+                    )}
                   </MessageContent>
                 </Message>
               ) : (
@@ -238,7 +308,9 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                     ) : (
                       <Stack gap={3}>
                         <Bubble variant="muted">
-                          <BubbleContent>{entry.text}</BubbleContent>
+                          <BubbleContent>
+                            <Markdown>{entry.text}</Markdown>
+                          </BubbleContent>
                         </Bubble>
                         {entry.quickReplies && entry.id === lastId && !thinking && (
                           <Inline gap={2}>
@@ -273,40 +345,96 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
           <div ref={end} />
         </main>
 
-        <footer className="chat-composer">
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              send(draft)
-            }}
-          >
-            <InputGroup>
-              <InputGroupTextarea
-                placeholder="Reply to Spark…"
-                value={draft}
-                rows={1}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault()
-                    send(draft)
-                  }
+        <footer
+          className="chat-composer"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault()
+            pick(event.dataTransfer.files)
+          }}
+        >
+          <Stack gap={2}>
+            {files.length > 0 && (
+              <AttachmentGroup>
+                {files.map((item) => (
+                  <Attachment key={item.id} size="sm">
+                    <AttachmentMedia variant={item.file.type === 'application/pdf' ? 'icon' : 'image'}>
+                      {item.file.type === 'application/pdf' ? <Icon icon={Pdf01Icon} /> : <img src={item.preview} alt="" />}
+                    </AttachmentMedia>
+                    <AttachmentContent>
+                      <AttachmentTitle>{item.file.name}</AttachmentTitle>
+                    </AttachmentContent>
+                    <AttachmentActions>
+                      <AttachmentAction aria-label={`Remove ${item.file.name}`} onClick={() => unpick(item.id)}>
+                        <Icon icon={Cancel01Icon} />
+                      </AttachmentAction>
+                    </AttachmentActions>
+                  </Attachment>
+                ))}
+              </AttachmentGroup>
+            )}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                send(draft)
+              }}
+            >
+              <input
+                ref={picker}
+                type="file"
+                accept={ACCEPTED}
+                multiple
+                hidden
+                onChange={(event) => {
+                  pick(event.target.files)
+                  event.target.value = ''
                 }}
-                autoFocus
               />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  type="submit"
-                  size="icon-sm"
-                  variant="default"
-                  aria-label="Send"
-                  disabled={!draft.trim() || busy}
-                >
-                  <Icon icon={ArrowUp02Icon} />
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-          </form>
+              <InputGroup>
+                <InputGroupAddon align="inline-start">
+                  <InputGroupButton
+                    size="icon-sm"
+                    aria-label="Attach images or PDFs"
+                    title="Attach images or PDFs: a price list, your logo, photos"
+                    onClick={() => picker.current?.click()}
+                    disabled={files.length >= MAX_FILES}
+                  >
+                    <Icon icon={Attachment01Icon} />
+                  </InputGroupButton>
+                </InputGroupAddon>
+                <InputGroupTextarea
+                  placeholder="Reply to Spark, or attach a price list, your logo, photos…"
+                  value={draft}
+                  rows={1}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onPaste={(event) => {
+                    if (event.clipboardData.files.length > 0) {
+                      event.preventDefault()
+                      pick(event.clipboardData.files)
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault()
+                      send(draft)
+                    }
+                  }}
+                  autoFocus
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    type="submit"
+                    size="icon-sm"
+                    variant="default"
+                    aria-label="Send"
+                    disabled={(!draft.trim() && files.length === 0) || busy}
+                  >
+                    <Icon icon={ArrowUp02Icon} />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </form>
+          </Stack>
         </footer>
       </div>
 
@@ -314,5 +442,36 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
         {panel(true)}
       </aside>
     </div>
+  )
+}
+
+/** What the owner attached, on their sent message: images as thumbnails, PDFs by name. */
+function SentFiles({ files }: { files: PickedFile[] }) {
+  const images = files.filter((item) => item.file.type !== 'application/pdf')
+  const documents = files.filter((item) => item.file.type === 'application/pdf')
+  return (
+    <>
+      {images.length > 0 && (
+        <div className="sent-images">
+          {images.map((item) => (
+            <img key={item.id} src={item.preview} alt={item.file.name} />
+          ))}
+        </div>
+      )}
+      {documents.length > 0 && (
+        <AttachmentGroup>
+          {documents.map((item) => (
+            <Attachment key={item.id} size="sm">
+              <AttachmentMedia variant="icon">
+                <Icon icon={Pdf01Icon} />
+              </AttachmentMedia>
+              <AttachmentContent>
+                <AttachmentTitle>{item.file.name}</AttachmentTitle>
+              </AttachmentContent>
+            </Attachment>
+          ))}
+        </AttachmentGroup>
+      )}
+    </>
   )
 }

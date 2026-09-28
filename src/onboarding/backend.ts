@@ -53,11 +53,22 @@ export interface AgentReply {
   choices: string[]
 }
 
-/** One conversation turn: what the owner typed, or something the app reports. */
-export async function askAgent(businessId: string, turn: { message: string } | { event: string }): Promise<AgentReply> {
+export type AgentTurn = { message: string; attachments?: string[] } | { event: string }
+
+/** One conversation turn: what the owner typed (and attached), or something the app reports. */
+export async function askAgent(businessId: string, turn: AgentTurn): Promise<AgentReply> {
   const { data, error } = await supabase.functions.invoke('agent', { body: { business_id: businessId, ...turn } })
   if (error) throw error
   return { reply: data.reply ?? '', choices: data.choices ?? [] }
+}
+
+/** Uploads a file the owner attached; returns its id, the storage path the agent's tools take. */
+export async function uploadAttachment(businessId: string, file: File): Promise<string> {
+  const extension = file.name.split('.').pop()?.toLowerCase() || file.type.split('/')[1] || 'bin'
+  const path = `${businessId}/${crypto.randomUUID()}.${extension}`
+  const { error } = await supabase.storage.from('uploads').upload(path, file, { contentType: file.type })
+  if (error) throw error
+  return path
 }
 
 const CALENDARS: Record<string, string> = {
@@ -70,7 +81,7 @@ const CALENDARS: Record<string, string> = {
 }
 
 export async function loadProfile(businessId: string): Promise<Profile> {
-  const [business, locations, brand, colors, catalog, team, calendar] = await Promise.all([
+  const [business, locations, brand, colors, catalog, team, calendar, media] = await Promise.all([
     supabase.from('businesses').select('name, description, sector').eq('id', businessId).single(),
     supabase
       .from('locations')
@@ -86,6 +97,7 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       .order('position'),
     supabase.from('team_members').select('display_name, position').eq('business_id', businessId).order('position'),
     supabase.from('calendar_setups').select('provider, provider_label').eq('business_id', businessId).maybeSingle(),
+    supabase.from('business_media').select('bucket, path, caption, position').eq('business_id', businessId).order('position'),
   ])
 
   const profile: Profile = {}
@@ -112,6 +124,16 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       fonts: brand.data?.fonts ?? [],
       tone: brand.data?.tone_of_voice ?? [],
     }
+  }
+
+  if (media.data?.length) {
+    const signed = await Promise.all(
+      media.data.map((item) => supabase.storage.from(item.bucket).createSignedUrl(item.path, 60 * 60)),
+    )
+    profile.photos = media.data.flatMap((item, index) => {
+      const url = signed[index].data?.signedUrl
+      return url ? [{ url, caption: item.caption ?? undefined }] : []
+    })
   }
 
   if (catalog.data?.length) {

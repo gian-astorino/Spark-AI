@@ -133,6 +133,30 @@ export const DEFS: ToolDef[] = [
     },
   },
   {
+    name: 'set_logo',
+    description: 'Use an attached image as the business logo. Only when the owner says it is their logo, or it clearly is.',
+    input_schema: {
+      type: 'object',
+      properties: { attachment: { type: 'string', description: 'The attachment id, as listed with the message' } },
+      required: ['attachment'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_photos',
+    description:
+      'Keep attached images as photos of the business (the place, the team, treatments, results) for its profile and marketing. Not for screenshots or documents that only carried information.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        attachments: { type: 'array', items: { type: 'string' }, description: 'Attachment ids' },
+        caption: nullable('string', 'What the photos show, in the owner\'s language'),
+      },
+      required: ['attachments', 'caption'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'offer_choices',
     description:
       'Show up to four short answers the owner can tap instead of typing, under your next message. Use it for questions with a few likely answers.',
@@ -296,6 +320,35 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
       )
       return 'Saved.'
 
+    case 'set_logo': {
+      const path = ownAttachment(String(input.attachment), businessId)
+      const { data: file, error } = await db.storage.from('uploads').download(path)
+      if (error || !file) throw new Error(`Attachment not found: ${input.attachment}`)
+      const extension = path.split('.').pop() ?? 'png'
+      const logoPath = `${businessId}/logo.${extension}`
+      await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
+      await check(db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, source: ctx.source }))
+      return 'Logo saved.'
+    }
+
+    case 'add_photos': {
+      const paths = (input.attachments as string[]).map((attachment) => ownAttachment(attachment, businessId))
+      const { count } = await db.from('business_media').select('id', { count: 'exact', head: true }).eq('business_id', businessId)
+      await check(
+        db.from('business_media').insert(
+          paths.map((path, index) => ({
+            business_id: businessId,
+            bucket: 'uploads',
+            path,
+            caption: input.caption ?? null,
+            position: (count ?? 0) + index,
+            source: ctx.source,
+          })),
+        ),
+      )
+      return `${paths.length} photo(s) saved.`
+    }
+
     case 'offer_choices':
       ctx.choices = (input.options as string[]).slice(0, 4)
       return 'The options will be shown under your next message.'
@@ -307,6 +360,12 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
     default:
       return `Unknown tool ${name}.`
   }
+}
+
+/** An attachment id is its storage path; it must sit in this business's folder. */
+function ownAttachment(id: string, businessId: string) {
+  if (!id.startsWith(`${businessId}/`) || id.includes('..')) throw new Error(`Unknown attachment: ${id}`)
+  return id
 }
 
 /** Supabase returns errors instead of throwing; the loop wants them thrown. */
