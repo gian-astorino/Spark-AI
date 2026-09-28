@@ -32,7 +32,11 @@ What the profile needs:
 - tone of voice (from how its pages talk);
 - branding: logo, brand colours and fonts.
 
-The one rule: look only for what is missing. Work section by section: business name, sector, address, opening hours, catalog, tone of voice, logo, colours, fonts. A section that already has data counts as done: never search again to complete or improve it (more treatments, missing durations, a better description) unless the owner asked for it. The profile_data you are given shows what is already there; with what you save along the way, it tells you what is still missing. When nothing is missing, call finish_research at once, even with budget left. If two searches in a row bring nothing new, stop.
+The one rule: look only for what is missing. Work section by section: business name, sector, address, opening hours, catalog, tone of voice, logo, colours, fonts. A section that already has data counts as done: never search again to complete or improve it (a better description, other photos) unless the owner asked for it.
+
+The catalog is the exception to "has data": it counts as done only when its services have prices. A few generic entries without prices or durations (the kind a website's menu lists) do not make a catalog.
+
+Booking platforms are the authority on the catalog, prices, durations and opening hours. Whenever the business's page on Fresha, Treatwell, Booksy, Uala or similar comes up (linked from its site, found by searching, or given as the link to start from), read it and, unless the catalog is already complete with prices, save its whole catalog in one call. When the catalog is still missing or has no prices, search for such a page ("<name> <city> treatwell", "<name> <city> fresha") before anything else. Once a platform's catalog is saved, remove with remove_catalog_item the entries from other sources that are generic duplicates of its services and have no price. The profile_data you are given shows what is already there; with what you save along the way, it tells you what is still missing. When nothing is missing, call finish_research at once, even with budget left. If two searches in a row bring nothing new, stop.
 
 Branding comes from the business's own website, never from a booking platform or directory: when logo, colours or fonts are missing, find the official website (it may be linked from its booking or social pages, or found by searching its name and city) and call import_branding_from_site with its home page. That reads logo, colours and fonts in one go. If the business has no website of its own, use the preview_image of its Facebook or Instagram page as the logo with set_logo_from_url.
 If there is still no logo after that, look for it with search_images (e.g. "<name> <city> logo"). You will see the results: pick one only if you can read the business's name in it and it comes from a page about this business (its site, social or booking pages); save it with set_logo_from_url and its image address. If none clearly qualifies, leave the logo missing: a wrong logo is worse than none.
@@ -62,7 +66,14 @@ const RESEARCH_TOOLS: OpenAI.Responses.Tool[] = [
     },
   }),
   ...DEFS.filter((tool) =>
-    ['update_business', 'set_location', 'save_catalog_items', 'set_tone_of_voice', 'set_logo_from_url'].includes(tool.name),
+    [
+      'update_business',
+      'set_location',
+      'save_catalog_items',
+      'remove_catalog_item',
+      'set_tone_of_voice',
+      'set_logo_from_url',
+    ].includes(tool.name),
   ).map(asFunctionTool),
   asFunctionTool({
     name: 'import_branding_from_site',
