@@ -44,6 +44,7 @@ import {
   startImport,
   uploadAttachment,
   type AgentTurn,
+  type ImportSource,
 } from './backend.ts'
 import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
@@ -79,6 +80,7 @@ interface Job {
   pagesRead: number
   pagesTotal: number
   activity?: string
+  sources?: ImportSource[]
 }
 
 const POLL_MS = 3000
@@ -168,6 +170,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
           pagesRead: progress.pagesRead,
           pagesTotal: progress.pagesTotal,
           activity: progress.activity,
+          sources: progress.sources,
         })
         if (progress.status !== 'running') return settle(progress.status, progress.summary)
       }

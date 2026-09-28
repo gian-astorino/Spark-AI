@@ -14,7 +14,7 @@ const MODEL = 'gpt-5.5'
 /** Firecrawl pages per research run (its credit budget) and model turns (a
  * guard against a loop that never settles). A link pasted in the chat only
  * fills gaps, so it gets less of both. */
-export const MAX_READS = 12
+export const MAX_READS = 15
 const MAX_ROUNDS = 16
 export const EXTRA_READS = 4
 const EXTRA_ROUNDS = 8
@@ -31,6 +31,11 @@ What the profile needs:
 - catalog: treatments or services with price and duration (category and description when given);
 - tone of voice: a description of how the business talks to clients, from how its own pages and posts are written (not the platform's copy);
 - branding: logo, brand colours and fonts.
+
+A first research (starting from the business's own link, not a link pasted in the chat) begins with a thorough pass, before any rule about stopping:
+1. Read the home page and every page of the site's own navigation that is about services, treatments, prices or packages, about us or the team, and contacts or opening hours. Several pages, not one.
+2. Search the web for the business by name and city, and read its listings among the first results: booking platforms (Treatwell, Fresha, Booksy, Uala), its Google Maps or Business listing, its Facebook and Instagram pages.
+Only after that pass does the rule below apply.
 
 The one rule: look only for what is missing. Work section by section: business name, sector, address, opening hours, catalog, tone of voice, logo, colours, fonts. A section that already has data counts as done: never search again to complete or improve it (a better description, other photos) unless the owner asked for it.
 
@@ -143,10 +148,17 @@ export async function beginResearch(start: string, profile: string, additive: bo
   return response.id
 }
 
+/** One source a run touched, in order, for the owner to see. */
+export interface Source {
+  kind: 'page' | 'search' | 'images' | 'branding'
+  /** The address read, or the query searched. */
+  value: string
+}
+
 export type StepResult =
-  | { state: 'running'; responseId: string; activity?: string; reads: number }
-  | { state: 'done'; summary: string; reads: number }
-  | { state: 'failed'; error: string; reads: number }
+  | { state: 'running'; responseId: string; activity?: string; reads: number; sources: Source[] }
+  | { state: 'done'; summary: string; reads: number; sources: Source[] }
+  | { state: 'failed'; error: string; reads: number; sources: Source[] }
 
 /**
  * Advances the research by at most one model turn. While the background
@@ -159,19 +171,22 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
   const maxRounds = job.additive ? EXTRA_ROUNDS : MAX_ROUNDS
   const response = await openai.responses.retrieve(job.openai_response_id!)
   if (response.status === 'queued' || response.status === 'in_progress') {
-    return { state: 'running', responseId: response.id, reads, activity: searching(response) }
+    return { state: 'running', responseId: response.id, reads, activity: searching(response), sources: [] }
   }
+  // The web searches the model ran during this turn, then the tools it asks for.
+  const sources: Source[] = webSearches(response)
   if (response.status !== 'completed') {
-    return { state: 'failed', error: `Research ${response.status}: ${response.error?.message ?? response.incomplete_details?.reason ?? ''}`, reads }
+    const error = `Research ${response.status}: ${response.error?.message ?? response.incomplete_details?.reason ?? ''}`
+    return { state: 'failed', error, reads, sources }
   }
 
   const calls = response.output.filter((item) => item.type === 'function_call')
   const finish = calls.find((call) => call.name === 'finish_research')
   if (finish || calls.length === 0) {
     const summary = finish ? String(JSON.parse(finish.arguments).summary ?? '') : response.output_text
-    return { state: 'done', summary, reads }
+    return { state: 'done', summary, reads, sources }
   }
-  if (job.rounds + 1 >= maxRounds) return { state: 'done', summary: 'Stopped after too many steps.', reads }
+  if (job.rounds + 1 >= maxRounds) return { state: 'done', summary: 'Stopped after too many steps.', reads, sources }
 
   const ctx: ToolContext = { db, businessId: job.business_id, source: 'import', choices: [] }
   let activity: string | undefined
@@ -189,6 +204,7 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
             output = 'Budget spent: no more pages. Call finish_research.'
           } else {
             reads++
+            sources.push({ kind: 'branding', value: url })
             activity = `Leggo il branding di ${url.replace(/^https?:\/\/(www\.)?/, '')}`
             const home = await scrape(url, true)
             await saveBranding(db, job.business_id, home.branding)
@@ -206,6 +222,7 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
             output = 'Budget spent: no more searches. Call finish_research.'
           } else {
             reads++
+            sources.push({ kind: 'images', value: String(input.query) })
             activity = `Cerco il logo: "${String(input.query)}"`
             output = await imageResults(String(input.query))
           }
@@ -216,6 +233,7 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
             reads++
             activity = `Leggo ${String(input.url).replace(/^https?:\/\/(www\.)?/, '')}`
             const url = String(input.url)
+            sources.push({ kind: 'page', value: url })
             // Fresha and Treatwell: their complete listing, straight from the page's data.
             output = (await readPlatform(url)) ?? (await readPage(url))
           }
@@ -238,7 +256,7 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
     reasoning: { effort: 'medium' },
     background: true,
   })
-  return { state: 'running', responseId: next.id, reads, activity: activity ?? 'Salvo quello che ho trovato' }
+  return { state: 'running', responseId: next.id, reads, sources, activity: activity ?? 'Salvo quello che ho trovato' }
 }
 
 /** Any other page, through Firecrawl. Behind a login wall, its preview image at least. */
@@ -256,6 +274,15 @@ async function readPage(url: string): Promise<string> {
       ? `The page content could not be read (${String(failure)}), but its preview image is: ${image}`
       : `The page could not be read: ${String(failure)}`
   }
+}
+
+/** The queries of the web searches in a response. */
+function webSearches(response: OpenAI.Responses.Response): Source[] {
+  return response.output.flatMap((item) => {
+    if (item.type !== 'web_search_call') return []
+    const query = (item as { action?: { query?: string } }).action?.query
+    return query ? [{ kind: 'search' as const, value: query }] : []
+  })
 }
 
 /** "Searching …" when the latest thing the model did was a web search. */

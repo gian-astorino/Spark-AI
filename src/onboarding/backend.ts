@@ -5,6 +5,12 @@ import type { HoursRow, Profile } from './profile.ts'
 
 export type ImportStatus = 'running' | 'done' | 'failed'
 
+/** One source a research touched: a page read, a web or image search, a branding read. */
+export interface ImportSource {
+  kind: 'page' | 'search' | 'images' | 'branding'
+  value: string
+}
+
 export interface ImportProgress {
   status: ImportStatus
   pagesRead: number
@@ -13,6 +19,7 @@ export interface ImportProgress {
   activity?: string
   /** Once done: the sources used and what is still missing. */
   summary?: string
+  sources: ImportSource[]
 }
 
 export async function createBusiness(websiteUrl?: string): Promise<string> {
@@ -45,6 +52,7 @@ export async function checkImport(jobId: string): Promise<ImportProgress> {
     pagesTotal: data.pages_total ?? 0,
     activity: data.activity ?? undefined,
     summary: data.summary ?? undefined,
+    sources: data.sources ?? [],
   }
 }
 

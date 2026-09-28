@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Button,
   Item,
@@ -11,6 +12,7 @@ import {
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import { Alert02Icon, Cancel01Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
+import type { ImportSource } from './backend.ts'
 import { Icon } from './Icon.tsx'
 
 export type MarkerStatus = 'starting' | 'running' | 'done' | 'failed' | 'skipped'
@@ -22,6 +24,7 @@ export function ImportMarker({
   pagesRead,
   pagesTotal,
   activity,
+  sources = [],
   onSkip,
 }: {
   label: string
@@ -30,8 +33,11 @@ export function ImportMarker({
   pagesTotal: number
   /** What the research is doing right now. */
   activity?: string
+  /** Pages read and searches made, shown once it is over. */
+  sources?: ImportSource[]
   onSkip: () => void
 }) {
+  const [showSources, setShowSources] = useState(false)
   if (status === 'starting' || status === 'running') {
     const counted = status === 'running' && pagesTotal > 0
     return (
@@ -72,8 +78,38 @@ export function ImportMarker({
         <Icon icon={view.icon} />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{view.title}</ItemTitle>
+        <Stack gap={2}>
+          <ItemTitle>{view.title}</ItemTitle>
+          {sources.length > 0 && (
+            <Button variant="link" size="xs" onClick={() => setShowSources((open) => !open)}>
+              {showSources ? 'Nascondi le fonti' : `Vedi le fonti (${sources.length})`}
+            </Button>
+          )}
+          {showSources && (
+            <ol className="sources">
+              {sources.map((source, index) => (
+                <li key={index}>
+                  <span className="source-kind">{SOURCE_KINDS[source.kind]}</span>{' '}
+                  {source.kind === 'page' || source.kind === 'branding' ? (
+                    <a href={source.value} target="_blank" rel="noreferrer">
+                      {source.value.replace(/^https?:\/\/(www\.)?/, '')}
+                    </a>
+                  ) : (
+                    <span>“{source.value}”</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </Stack>
       </ItemContent>
     </Item>
   )
+}
+
+const SOURCE_KINDS: Record<ImportSource['kind'], string> = {
+  page: 'Pagina',
+  search: 'Ricerca web',
+  images: 'Ricerca immagini',
+  branding: 'Branding',
 }

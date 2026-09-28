@@ -97,7 +97,7 @@ async function start(asUser: SupabaseClient, db: SupabaseClient, businessId: str
 async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) {
   const { data: job } = await asUser
     .from('import_jobs')
-    .select('id, business_id, target, status, openai_response_id, rounds, pages_read, pages_total, additive, activity, processing_started_at')
+    .select('id, business_id, target, status, openai_response_id, rounds, pages_read, pages_total, additive, activity, sources, processing_started_at')
     .eq('id', jobId)
     .maybeSingle()
   if (!job) return json({ error: 'Job not found' }, 404)
@@ -115,6 +115,7 @@ async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) 
 
   try {
     const step = await stepResearch(db, job)
+    const sources = [...(job.sources ?? []), ...step.sources]
     if (step.state === 'running') {
       const advanced = step.responseId !== job.openai_response_id
       const update = {
@@ -122,12 +123,14 @@ async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) 
         rounds: job.rounds + (advanced ? 1 : 0),
         pages_read: step.reads,
         activity: step.activity ?? job.activity,
+        sources,
         processing_started_at: null,
       }
       await db.from('import_jobs').update(update).eq('id', job.id)
       return json({ ...progress(job), ...update }, 200)
     }
     if (step.state === 'failed') {
+      await db.from('import_jobs').update({ sources }).eq('id', job.id)
       await fail(db, job.id, step.error)
       return json({ ...progress(job), status: 'failed' }, 200)
     }
@@ -135,6 +138,7 @@ async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) 
       status: 'done',
       summary: step.summary,
       pages_read: step.reads,
+      sources,
       activity: null,
       processing_started_at: null,
       finished_at: new Date().toISOString(),
@@ -155,6 +159,7 @@ function progress(job: {
   pages_total: number | null
   activity?: string | null
   summary?: string | null
+  sources?: unknown
 }) {
   return {
     job_id: job.id,
@@ -163,6 +168,7 @@ function progress(job: {
     pages_total: job.pages_total,
     activity: job.activity ?? null,
     summary: job.summary ?? null,
+    sources: job.sources ?? [],
   }
 }
 

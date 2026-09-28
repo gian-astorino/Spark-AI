@@ -378,3 +378,23 @@
   background: none;
   cursor: pointer;
 }
+
+.sources {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.sources a {
+  color: var(--foreground);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.source-kind {
+  font-weight: 500;
+  color: var(--foreground);
+}
