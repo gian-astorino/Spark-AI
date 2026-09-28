@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Avatar,
-  AvatarFallback,
-  Badge,
   Bubble,
   BubbleContent,
   BubbleGroup,
@@ -12,7 +9,6 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
-  ItemTitle,
   Message,
   MessageAvatar,
   MessageContent,
@@ -28,6 +24,7 @@ import {
 } from '@skyground-media/pipelean-design-system'
 import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/core-free-icons'
 import { Icon } from './Icon.tsx'
+import { SparkMark } from './SparkMark.tsx'
 import { ImportMarker } from './ImportMarker.tsx'
 import { ProfilePanel } from './ProfilePanel.tsx'
 import { mockProfile } from './profile.ts'
@@ -36,7 +33,7 @@ import { displayUrl, type ImportRequest } from './types.ts'
 import { useImport } from './useImport.ts'
 
 type Entry =
-  | { id: number; from: 'agent' | 'user'; text: string }
+  | { id: number; from: 'agent' | 'user'; text: string; quickReplies?: boolean }
   | { id: number; from: 'import' }
 
 const REPLY_MS = 900
@@ -58,7 +55,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   useEffect(() => {
     if (importing.status === 'done' || importing.status === 'skipped') {
       const text = importing.status === 'done' ? AFTER_IMPORT : AFTER_SKIP
-      setEntries((current) => [...current, { id: nextId++, from: 'agent', text }])
+      const quickReplies = importing.status === 'done'
+      setEntries((current) => [...current, { id: nextId++, from: 'agent', text, quickReplies }])
     }
   }, [importing.status])
 
@@ -82,30 +80,27 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
 
   const label = request.source === 'instagram' ? `@${request.target}` : displayUrl(request.target)
   const busy = thinking || importing.status === 'running'
-  const showQuickReplies = importing.status === 'done' && !entries.some((entry) => entry.from === 'user')
+  const answered = entries.some((entry) => entry.from === 'user')
   const panel = <ProfilePanel profile={profile} sectionState={importing.sectionState} />
 
   return (
     <div className="workspace">
       <div className="chat">
         <header className="chat-header">
-          <Inline gap={2} align="center" justify="between">
-            <Inline gap={2} align="center">
-              <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
-                <Icon icon={ArrowLeft02Icon} />
-              </Button>
-              <Avatar size="sm">
-                <AvatarFallback>S</AvatarFallback>
-              </Avatar>
-              <ItemTitle>Spark</ItemTitle>
-              <Badge variant="secondary">Onboarding</Badge>
-            </Inline>
+          <Inline gap={2} align="center">
+            <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
+              <Icon icon={ArrowLeft02Icon} />
+            </Button>
+            <SparkMark withName />
+          </Inline>
+          <Inline gap={3} align="center">
+            <span className="step-count">Step 2 of 2</span>
             <span className="profile-toggle">
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Icon icon={SidebarRightIcon} />
-                    Business profile
+                    Profile
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right">
@@ -136,22 +131,36 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
               ) : (
                 <Message key={entry.id}>
                   <MessageAvatar>
-                    <Avatar size="sm">
-                      <AvatarFallback>S</AvatarFallback>
-                    </Avatar>
+                    <SparkMark />
                   </MessageAvatar>
                   <MessageContent>
                     {entry.from === 'import' ? (
                       <ImportMarker
                         label={label}
                         status={importing.status}
-                        sectionState={importing.sectionState}
+                        ready={importing.ready}
                         onSkip={importing.skip}
                       />
                     ) : (
-                      <Bubble variant="muted">
-                        <BubbleContent>{entry.text}</BubbleContent>
-                      </Bubble>
+                      <Stack gap={3}>
+                        <Bubble variant="muted">
+                          <BubbleContent>{entry.text}</BubbleContent>
+                        </Bubble>
+                        {entry.quickReplies && !answered && (
+                          <Inline gap={2}>
+                            <Button variant="outline" size="sm" onClick={() => send('Looks right.')}>
+                              Looks right
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => send('Some of this is off, let me fix it.')}
+                            >
+                              Some of this is off
+                            </Button>
+                          </Inline>
+                        )}
+                      </Stack>
                     )}
                   </MessageContent>
                 </Message>
@@ -160,9 +169,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
             {thinking && (
               <Message>
                 <MessageAvatar>
-                  <Avatar size="sm">
-                    <AvatarFallback>S</AvatarFallback>
-                  </Avatar>
+                  <SparkMark />
                 </MessageAvatar>
                 <MessageContent>
                   <Bubble variant="muted">
@@ -178,51 +185,39 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
         </main>
 
         <footer className="chat-composer">
-          <Stack gap={3}>
-            {showQuickReplies && (
-              <Inline gap={2}>
-                <Button variant="outline" size="sm" onClick={() => send('Looks right.')}>
-                  Looks right
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => send('Some of this is off, let me fix it.')}>
-                  Some of this is off
-                </Button>
-              </Inline>
-            )}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                send(draft)
-              }}
-            >
-              <InputGroup>
-                <InputGroupTextarea
-                  placeholder="Tell Spark more about your business…"
-                  value={draft}
-                  rows={1}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                      event.preventDefault()
-                      send(draft)
-                    }
-                  }}
-                  autoFocus
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    type="submit"
-                    size="icon-sm"
-                    variant="default"
-                    aria-label="Send"
-                    disabled={!draft.trim() || busy}
-                  >
-                    <Icon icon={ArrowUp02Icon} />
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
-            </form>
-          </Stack>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              send(draft)
+            }}
+          >
+            <InputGroup>
+              <InputGroupTextarea
+                placeholder="Reply to Spark…"
+                value={draft}
+                rows={1}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    send(draft)
+                  }
+                }}
+                autoFocus
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  type="submit"
+                  size="icon-sm"
+                  variant="default"
+                  aria-label="Send"
+                  disabled={!draft.trim() || busy}
+                >
+                  <Icon icon={ArrowUp02Icon} />
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </form>
         </footer>
       </div>
 

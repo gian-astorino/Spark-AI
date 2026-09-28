@@ -3,48 +3,27 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupText,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
   EmptyMedia,
   Field,
   FieldContent,
   FieldDescription,
   FieldLabel,
   FieldTitle,
-  Inline,
   Input,
   RadioGroup,
   RadioGroupItem,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { Globe02Icon, InstagramIcon, Store01Icon } from '@hugeicons/core-free-icons'
+import { Globe02Icon, InstagramIcon, Message01Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from './Icon.tsx'
+import { SparkMark } from './SparkMark.tsx'
 import type { ImportRequest, Source } from './types.ts'
 
 const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement }[] = [
-  {
-    value: 'website',
-    title: 'My website',
-    description: 'We read your pages to learn what you sell and how you talk about it.',
-    icon: Globe02Icon,
-  },
-  {
-    value: 'instagram',
-    title: 'Instagram',
-    description: 'We look at your profile and recent posts to pick up your style.',
-    icon: InstagramIcon,
-  },
-  {
-    value: 'none',
-    title: "I don't have a website",
-    description: 'No problem: tell Spark about your business in a quick chat.',
-    icon: Store01Icon,
-  },
+  { value: 'website', title: 'My website', description: 'Import from your site', icon: Globe02Icon },
+  { value: 'instagram', title: 'Instagram', description: 'Import from your profile', icon: InstagramIcon },
+  { value: 'none', title: "I don't have a website", description: 'Start from a quick chat', icon: Message01Icon },
 ]
 
 export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest) => void }) {
@@ -102,15 +81,19 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
   }
 
   return (
-    <form onSubmit={submit}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Let's get to know your business</CardTitle>
-          <CardDescription>
-            Spark can start from what you already have online. Where should we import from?
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="welcome">
+      <header className="welcome-top">
+        <SparkMark withName />
+        <span className="step-count">Step 1 of 2</span>
+      </header>
+
+      <form className="welcome-body" onSubmit={submit}>
+        <Stack gap={8}>
+          <div className="page-heading">
+            <h1>Let's get to know your business</h1>
+            <p>Spark learns from what you already have online. Pick a starting point.</p>
+          </div>
+
           <RadioGroup value={source} onValueChange={(value) => setSource(value as Source)}>
             <Stack gap={3}>
               {OPTIONS.map((option) => (
@@ -131,15 +114,16 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
               ))}
             </Stack>
           </RadioGroup>
-        </CardContent>
-        <CardFooter>
-          <Inline justify="end">
-            <Button type="submit" disabled={!canContinue}>
+
+          <div className="stretch">
+            <Button type="submit" size="lg" disabled={!canContinue}>
               Continue
             </Button>
-          </Inline>
-        </CardFooter>
-      </Card>
-    </form>
+          </div>
+        </Stack>
+      </form>
+
+      <footer className="welcome-note">You can change everything later.</footer>
+    </div>
   )
 }

@@ -1,29 +1,34 @@
 import {
+  Avatar,
+  AvatarFallback,
   Badge,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Inline,
-  Item,
-  ItemActions,
-  ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemTitle,
-  Separator,
+  Progress,
   Skeleton,
+  Spinner,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
 } from '@skyground-media/pipelean-design-system'
+import {
+  Building03Icon,
+  CheckmarkCircle02Icon,
+  Location01Icon,
+  PaintBoardIcon,
+  ShoppingBag01Icon,
+} from '@hugeicons/core-free-icons'
+import type { IconSvgElement } from '@hugeicons/react'
+import { Icon } from './Icon.tsx'
 import { SECTIONS, SECTION_TITLES, type Profile, type Section } from './profile.ts'
 
 type SectionState = 'ready' | 'loading' | 'empty'
+
+const SECTION_ICONS: Record<Section, IconSvgElement> = {
+  company: Building03Icon,
+  branding: PaintBoardIcon,
+  locations: Location01Icon,
+  catalog: ShoppingBag01Icon,
+}
 
 export function ProfilePanel({
   profile,
@@ -32,42 +37,48 @@ export function ProfilePanel({
   profile: Profile
   sectionState: (section: Section) => SectionState
 }) {
+  const filled = SECTIONS.filter((section) => sectionState(section) === 'ready').length
+
   return (
-    <Stack gap={4}>
+    <div className="profile">
+      <div className="profile-head">
+        <Stack gap={3}>
+          <div className="panel-heading">
+            <h2>Business profile</h2>
+            <p>
+              {filled} of {SECTIONS.length} sections
+            </p>
+          </div>
+          <Progress value={(filled / SECTIONS.length) * 100} />
+        </Stack>
+      </div>
+
       {SECTIONS.map((section) => {
         const state = sectionState(section)
         return (
-          <Card key={section} size="sm">
-            <CardHeader>
-              <CardTitle>{SECTION_TITLES[section]}</CardTitle>
-              <CardAction>
-                <StateBadge state={state} />
-              </CardAction>
-            </CardHeader>
-            <CardContent>
-              {state === 'ready' ? (
-                <SectionBody section={section} profile={profile} />
-              ) : state === 'loading' ? (
-                <Stack gap={2}>
-                  <Skeleton width="full" />
-                  <Skeleton width="md" />
-                  <Skeleton width="sm" />
-                </Stack>
-              ) : (
-                <CardDescription>Spark will fill this in as you chat.</CardDescription>
-              )}
-            </CardContent>
-          </Card>
+          <section key={section} className="profile-section" data-state={state}>
+            <div className="profile-section-head">
+              <Inline gap={2} align="center">
+                <Icon icon={SECTION_ICONS[section]} />
+                <ItemTitle>{SECTION_TITLES[section]}</ItemTitle>
+              </Inline>
+              {state === 'ready' ? <Icon icon={CheckmarkCircle02Icon} /> : state === 'loading' ? <Spinner /> : null}
+            </div>
+            {state === 'ready' ? (
+              <SectionBody section={section} profile={profile} />
+            ) : state === 'loading' ? (
+              <Stack gap={2}>
+                <Skeleton width="full" />
+                <Skeleton width="md" />
+              </Stack>
+            ) : (
+              <ItemDescription>Spark will fill this in as you chat.</ItemDescription>
+            )}
+          </section>
         )
       })}
-    </Stack>
+    </div>
   )
-}
-
-function StateBadge({ state }: { state: SectionState }) {
-  if (state === 'ready') return <Badge variant="secondary">Imported</Badge>
-  if (state === 'loading') return <Badge variant="outline">Importing…</Badge>
-  return <Badge variant="outline">Empty</Badge>
 }
 
 function SectionBody({ section, profile }: { section: Section; profile: Profile }) {
@@ -75,90 +86,97 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
     case 'company': {
       const c = profile.company
       return (
-        <Stack gap={3}>
-          <Fact label="Name" value={c.name} />
-          <Fact label="About" value={c.description} />
-          <Fact label="Founded" value={c.founded} />
-          <Fact label="Contacts" value={`${c.phone} · ${c.email}`} />
-          <Fact label="Source" value={c.source} />
+        <Stack gap={4}>
+          <Inline gap={3} align="center">
+            <Avatar size="lg">
+              <AvatarFallback>{initials(c.name)}</AvatarFallback>
+            </Avatar>
+            <Stack gap={1}>
+              <ItemTitle>{c.name}</ItemTitle>
+              <ItemDescription>Since {c.founded}</ItemDescription>
+            </Stack>
+          </Inline>
+          <ItemDescription>{c.description}</ItemDescription>
+          <Rows
+            rows={[
+              ['Phone', c.phone],
+              ['Email', c.email],
+              ['Source', c.source],
+            ]}
+          />
         </Stack>
       )
     }
     case 'branding': {
       const b = profile.branding
       return (
-        <Stack gap={3}>
-          <Stack gap={2}>
-            <ItemDescription>Colors</ItemDescription>
-            <Inline gap={3}>
-              {b.colors.map((color) => (
-                <Inline key={color.hex} gap={2} align="center">
-                  {/* A data swatch: the colour is content, not styling. */}
-                  <span className="swatch" style={{ background: color.hex }} />
-                  <ItemTitle>{color.name}</ItemTitle>
-                </Inline>
-              ))}
-            </Inline>
-          </Stack>
-          <Fact label="Fonts" value={b.fonts.join(', ')} />
-          <Stack gap={2}>
-            <ItemDescription>Tone of voice</ItemDescription>
-            <Inline gap={2}>
-              {b.tone.map((word) => (
-                <Badge key={word} variant="secondary">
-                  {word}
-                </Badge>
-              ))}
-            </Inline>
-          </Stack>
+        <Stack gap={4}>
+          <div className="swatches">
+            {b.colors.map((color) => (
+              <div key={color.hex} className="swatch-card">
+                {/* A data swatch: the colour is content, not styling. */}
+                <span className="swatch" style={{ background: color.hex }} />
+                <ItemTitle>{color.name}</ItemTitle>
+                <ItemDescription>{color.hex}</ItemDescription>
+              </div>
+            ))}
+          </div>
+          <Rows rows={[['Fonts', b.fonts.join(' · ')]]} />
+          <Inline gap={2}>
+            {b.tone.map((word) => (
+              <Badge key={word} variant="secondary">
+                {word}
+              </Badge>
+            ))}
+          </Inline>
         </Stack>
       )
     }
     case 'locations':
       return (
         <Stack gap={4}>
-          {profile.locations.map((location, index) => (
+          {profile.locations.map((location) => (
             <Stack key={location.name} gap={2}>
-              {index > 0 && <Separator />}
-              <Fact label={location.name} value={location.address} />
-              <Table>
-                <TableBody>
-                  {location.hours.map((row) => (
-                    <TableRow key={row.days}>
-                      <TableCell>{row.days}</TableCell>
-                      <TableCell align="end">{row.time}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <Stack gap={1}>
+                <ItemTitle>{location.name}</ItemTitle>
+                <ItemDescription>{location.address}</ItemDescription>
+              </Stack>
+              <Rows rows={location.hours.map((row) => [row.days, row.time])} />
             </Stack>
           ))}
         </Stack>
       )
     case 'catalog':
       return (
-        <ItemGroup>
-          {profile.catalog.map((product) => (
-            <Item key={product.name} size="xs">
-              <ItemContent>
-                <ItemTitle>{product.name}</ItemTitle>
-                <ItemDescription>{product.category}</ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <ItemTitle>{product.price}</ItemTitle>
-              </ItemActions>
-            </Item>
-          ))}
-        </ItemGroup>
+        <Rows
+          rows={profile.catalog.map((product) => [product.name, product.price])}
+          details={profile.catalog.map((product) => product.category)}
+        />
       )
   }
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+/** Label on the left, value on the right: the panel's one repeated pattern. */
+function Rows({ rows, details }: { rows: [string, string][]; details?: string[] }) {
   return (
-    <Stack gap={1}>
-      <ItemDescription>{label}</ItemDescription>
-      <ItemTitle>{value}</ItemTitle>
-    </Stack>
+    <dl className="rows">
+      {rows.map(([label, value], index) => (
+        <div key={label} className="row" data-emphasis={details ? '' : undefined}>
+          <dt>
+            {label}
+            {details && <small>{details[index]}</small>}
+          </dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   )
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join('')
 }

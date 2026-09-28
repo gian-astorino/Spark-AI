@@ -4,67 +4,66 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemMedia,
   ItemTitle,
+  Progress,
   Spinner,
+  Stack,
 } from '@skyground-media/pipelean-design-system'
-import { Cancel01Icon, CheckmarkCircle02Icon, MinusSignCircleIcon } from '@hugeicons/core-free-icons'
+import { Cancel01Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
 import { Icon } from './Icon.tsx'
-import { SECTIONS, SECTION_TITLES, type Section } from './profile.ts'
+import { SECTIONS, SECTION_TITLES } from './profile.ts'
 import type { ImportStatus } from './useImport.ts'
 
 /** The import, shown inline in the conversation like a tool call. */
 export function ImportMarker({
   label,
   status,
-  sectionState,
+  ready,
   onSkip,
 }: {
   label: string
   status: ImportStatus
-  sectionState: (section: Section) => 'ready' | 'loading' | 'empty'
+  ready: number
   onSkip: () => void
 }) {
-  const title =
-    status === 'running' ? `Importing from ${label}` : status === 'done' ? `Imported from ${label}` : `Import from ${label} skipped`
+  if (status !== 'running') {
+    const done = status === 'done'
+    return (
+      <Item variant="outline" size="sm">
+        <ItemMedia variant="icon">
+          <Icon icon={done ? CheckmarkCircle02Icon : Cancel01Icon} />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{done ? `Imported from ${label}` : `Import from ${label} skipped`}</ItemTitle>
+          {done && <ItemDescription>{SECTIONS.map((s) => SECTION_TITLES[s]).join(' · ')}</ItemDescription>}
+        </ItemContent>
+      </Item>
+    )
+  }
 
+  const current = SECTIONS[Math.min(ready, SECTIONS.length - 1)]
   return (
     <Item variant="outline" size="sm">
       <ItemMedia variant="icon">
-        {status === 'running' ? <Spinner /> : <Icon icon={status === 'done' ? CheckmarkCircle02Icon : Cancel01Icon} />}
+        <Spinner />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{title}</ItemTitle>
-        <ItemGroup>
-          {SECTIONS.map((section) => {
-            const state = sectionState(section)
-            return (
-              <Item key={section} size="xs">
-                <ItemMedia variant="icon">
-                  {state === 'ready' ? (
-                    <Icon icon={CheckmarkCircle02Icon} />
-                  ) : state === 'loading' ? (
-                    <Spinner />
-                  ) : (
-                    <Icon icon={MinusSignCircleIcon} />
-                  )}
-                </ItemMedia>
-                <ItemContent>
-                  <ItemDescription>{SECTION_TITLES[section]}</ItemDescription>
-                </ItemContent>
-              </Item>
-            )
-          })}
-        </ItemGroup>
+        <Stack gap={2}>
+          <Stack gap={1}>
+            <ItemTitle>Importing from {label}</ItemTitle>
+            <ItemDescription>
+              Reading {SECTION_TITLES[current].toLowerCase()}… {ready} of {SECTIONS.length}
+            </ItemDescription>
+          </Stack>
+          <Progress value={(ready / SECTIONS.length) * 100} />
+        </Stack>
       </ItemContent>
-      {status === 'running' && (
-        <ItemActions>
-          <Button variant="ghost" size="sm" onClick={onSkip}>
-            Skip
-          </Button>
-        </ItemActions>
-      )}
+      <ItemActions>
+        <Button variant="ghost" size="sm" onClick={onSkip}>
+          Skip
+        </Button>
+      </ItemActions>
     </Item>
   )
 }

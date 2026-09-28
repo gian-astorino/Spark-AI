@@ -1,4 +1,103 @@
-/* Page shell only. Components are styled by the design system, never here. */
+/*
+ * Page shell only: layout, and the few elements Spark owns (headings, the mark,
+ * colour swatches). Design-system components are never restyled here.
+ */
+
+/* ---------- Brand mark ---------- */
+
+.spark-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spark-mark-tile {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.spark-mark-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  letter-spacing: -0.01em;
+}
+
+.step-count {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* ---------- Headings (the DS has no type scale yet) ---------- */
+
+.page-heading h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.page-heading p {
+  margin: 0.75rem 0 0;
+  font-size: 1rem;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.panel-heading p {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* ---------- Step 1: welcome ---------- */
+
+.welcome {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100dvh;
+}
+
+.welcome-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+}
+
+.welcome-body {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 8vh, 5rem) 1rem 2rem;
+}
+
+.welcome-note {
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* A grid container stretches its single child: a full-width primary action. */
+.stretch {
+  display: grid;
+}
+
+/* ---------- Step 2: chat + profile ---------- */
 
 .workspace {
   display: grid;
@@ -13,42 +112,75 @@
 }
 
 .chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
 }
 
 .chat-log {
   overflow-y: auto;
-  padding: 1.5rem max(1rem, calc((100% - 48rem) / 2));
+  padding: 1.5rem max(1rem, calc((100% - 44rem) / 2)) 2rem;
 }
 
 .chat-composer {
-  padding: 0.75rem max(1rem, calc((100% - 48rem) / 2)) 1rem;
+  padding: 0 max(1rem, calc((100% - 44rem) / 2)) 1.25rem;
 }
 
 .profile-panel {
   display: none;
   overflow-y: auto;
-  padding: 1rem;
   border-left: 1px solid var(--border);
-  background: var(--muted);
 }
 
 .sheet-body {
   overflow-y: auto;
-  padding: 0 1rem 1rem;
+}
+
+.profile-head {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-section {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-section[data-state='empty'] {
+  opacity: 0.6;
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.swatch-card {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .swatch {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 12%, transparent);
+  display: block;
+  height: 3rem;
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent);
+  margin-bottom: 0.25rem;
 }
 
 @media (min-width: 1024px) {
   .workspace {
-    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-columns: minmax(0, 1fr) 380px;
   }
   .profile-panel {
     display: block;
@@ -56,4 +188,39 @@
   .profile-toggle {
     display: none;
   }
+}
+
+.rows {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.row dt {
+  color: var(--muted-foreground);
+}
+
+.row[data-emphasis] dt {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.row dt small {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.row dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
 }
