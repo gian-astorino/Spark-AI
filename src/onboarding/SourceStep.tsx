@@ -14,7 +14,7 @@ import {
   RadioGroupItem,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { Globe02Icon, InstagramIcon, Message01Icon } from '@hugeicons/core-free-icons'
+import { Globe02Icon, InstagramIcon, Chatting01Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from './Icon.tsx'
 import { SparkMark } from './SparkMark.tsx'
@@ -23,7 +23,7 @@ import type { ImportRequest, Source } from './types.ts'
 const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement; disabled?: boolean }[] = [
   { value: 'website', title: 'Il mio sito', description: 'Importa dal tuo sito', icon: Globe02Icon },
   { value: 'instagram', title: 'Instagram', description: 'Presto disponibile', icon: InstagramIcon, disabled: true },
-  { value: 'none', title: 'Non ho un sito', description: 'Parti da una breve chat', icon: Message01Icon },
+  { value: 'none', title: 'Non ho un sito', description: 'Parti da una breve chat', icon: Chatting01Icon },
 ]
 
 export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest) => void }) {

@@ -31,7 +31,7 @@ import {
 import {
   ArrowLeft02Icon,
   ArrowUp02Icon,
-  Attachment01Icon,
+  Attachment02Icon,
   Cancel01Icon,
   Pdf01Icon,
   SidebarRightIcon,
@@ -406,7 +406,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                     onClick={() => picker.current?.click()}
                     disabled={files.length >= MAX_FILES}
                   >
-                    <Icon icon={Attachment01Icon} />
+                    <Icon icon={Attachment02Icon} />
                   </InputGroupButton>
                 </InputGroupAddon>
                 <InputGroupTextarea
