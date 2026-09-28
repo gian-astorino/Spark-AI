@@ -22,71 +22,156 @@ import {
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/core-free-icons'
+import { checkImport, createBusiness, loadProfile, startImport } from './backend.ts'
 import { Icon } from './Icon.tsx'
-import { ImportMarker } from './ImportMarker.tsx'
+import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
-import { IMPORTABLE, hasSection, mergeProfile, type Profile, type Section } from './profile.ts'
-import { AFTER_SCRIPT, FROM_CHAT, IMPORT_FAILED, NO_WEBSITE, WAITING, afterImport, type Turn } from './script.ts'
+import { hasSection, mergeProfile, type Profile, type Section } from './profile.ts'
+import {
+  AFTER_SCRIPT,
+  EXTRA_FAILED,
+  NO_WEBSITE,
+  SCRIPT,
+  SITE_FAILED,
+  WAITING,
+  afterExtraImport,
+  afterSiteImport,
+  findLink,
+  nextTurn,
+} from './script.ts'
 import { SparkMark } from './SparkMark.tsx'
 import { displayUrl, type ImportRequest } from './types.ts'
-import { useImport } from './useImport.ts'
 
 type Entry =
   | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
   | { id: number; from: 'user'; text: string }
-  | { id: number; from: 'import' }
+  | { id: number; from: 'import'; job: string }
+
+interface Job {
+  label: string
+  /** The business's own site, as opposed to an extra link from the chat. */
+  primary: boolean
+  status: MarkerStatus
+  pagesRead: number
+  pagesTotal: number
+}
 
 const REPLY_MS = 900
+const POLL_MS = 3000
 let nextId = 0
 
-const agent = (turn: Turn): Entry => ({ id: nextId++, from: 'agent', text: turn.ask, quickReplies: turn.quickReplies })
+const say = (text: string, quickReplies?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies })
 
 export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: () => void }) {
-  const importing = useImport(request)
   const [entries, setEntries] = useState<Entry[]>(() =>
-    request.source === 'none'
-      ? [{ id: nextId++, from: 'agent', text: NO_WEBSITE }, agent(FROM_CHAT[0])]
-      : [
-          { id: nextId++, from: 'agent', text: WAITING },
-          { id: nextId++, from: 'import' },
-        ],
+    request.source === 'website' ? [say(WAITING)] : [say(NO_WEBSITE), say(SCRIPT[0].ask)],
   )
-  // The questions still to go through, and the one currently asked.
-  const [script, setScript] = useState<Turn[]>(request.source === 'none' ? FROM_CHAT : [])
-  const [turn, setTurn] = useState(0)
+  const [jobs, setJobs] = useState<Record<string, Job>>({})
+  const [imported, setImported] = useState<Profile>({})
   const [answers, setAnswers] = useState<Profile>({})
+  // The question currently asked; -1 before the first one and once done.
+  // A ref: it steers replies but is never rendered.
+  const turn = useRef(request.source === 'website' ? -1 : 0)
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const end = useRef<HTMLDivElement>(null)
+  const business = useRef<Promise<string> | null>(null)
+  const stopped = useRef(new Set<string>())
 
-  // Once the import settles, whichever way, the agent takes over.
+  // What the imports delivered, overlaid by what the chat has told us.
+  const profile = useMemo(() => mergeProfile(imported, answers), [imported, answers])
+  // Imports settle minutes after they start: read current state, not the closure's.
+  const latest = useRef(profile)
+  latest.current = profile
+  const latestImported = useRef(imported)
+  latestImported.current = imported
+  const latestAnswers = useRef(answers)
+  latestAnswers.current = answers
+
+  /** The business row, created once, on first need. */
+  function businessId() {
+    business.current ??= createBusiness(request.source === 'website' ? request.target : undefined)
+    return business.current
+  }
+
+  /** Starts an import, shows its marker, follows it, and reports when it settles. */
+  async function runImport(url: string | undefined, label: string) {
+    const primary = url === undefined
+    const markerKey = `pending-${nextId}`
+    let job = markerKey
+    const update = (patch: Partial<Job>) => setJobs((current) => ({ ...current, [job]: { ...current[job], ...patch } }))
+    setJobs((current) => ({ ...current, [job]: { label, primary, status: 'starting', pagesRead: 0, pagesTotal: 0 } }))
+    setEntries((current) => [...current, { id: nextId++, from: 'import', job }])
+
+    const settle = async (status: 'done' | 'failed', pagesRead: number) => {
+      const before = latest.current
+      const id = await businessId()
+      const after = await loadProfile(id).catch(() => latestImported.current)
+      setImported(after)
+      const merged = mergeProfile(after, latestAnswers.current)
+      let text: string
+      if (primary) text = status === 'done' ? afterSiteImport(merged, pagesRead) : SITE_FAILED
+      else text = status === 'done' ? afterExtraImport(before, merged, label) : EXTRA_FAILED(label)
+      // Then pick the conversation back up where it is needed.
+      const next = nextTurn(merged, primary ? 0 : Math.max(turn.current, 0))
+      turn.current = next
+      setEntries((list) => [...list, say(text), ...(next >= 0 ? [say(SCRIPT[next].ask, SCRIPT[next].quickReplies)] : [])])
+    }
+
+    try {
+      const id = await businessId()
+      const started = await startImport(id, url)
+      // Re-key the marker from its placeholder to the real job id.
+      setJobs((current) => {
+        const { [markerKey]: pending, ...rest } = current
+        return { ...rest, [started]: { ...pending, status: 'running' } }
+      })
+      setEntries((current) => current.map((entry) => (entry.from === 'import' && entry.job === markerKey ? { ...entry, job: started } : entry)))
+      if (stopped.current.has(markerKey)) stopped.current.add(started)
+      job = started
+
+      while (!stopped.current.has(job)) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+        if (stopped.current.has(job)) return
+        const progress = await checkImport(job)
+        update({ status: progress.status, pagesRead: progress.pagesRead, pagesTotal: progress.pagesTotal })
+        if (progress.status !== 'running') return settle(progress.status, progress.pagesRead)
+      }
+    } catch (error) {
+      console.error(error)
+      if (stopped.current.has(job)) return
+      update({ status: 'failed' })
+      return settle('failed', 0)
+    }
+  }
+
+  function skip(job: string) {
+    stopped.current.add(job)
+    setJobs((current) => ({ ...current, [job]: { ...current[job], status: 'skipped' } }))
+    if (jobs[job]?.primary) {
+      const next = nextTurn(latest.current, 0)
+      turn.current = next
+      if (next >= 0) setEntries((list) => [...list, say(SCRIPT[next].ask, SCRIPT[next].quickReplies)])
+    }
+  }
+
+  // The business's own site, once.
+  const startedSite = useRef(false)
   useEffect(() => {
-    const { status, pagesRead } = importing
-    if (status === 'idle' || status === 'running') return
-    const next = status === 'done' ? afterImport(pagesRead) : FROM_CHAT
-    setScript(next)
-    setTurn(0)
-    setEntries((current) => [
-      ...current,
-      ...(status === 'failed' ? [{ id: nextId++, from: 'agent' as const, text: IMPORT_FAILED }] : []),
-      agent(next[0]),
-    ])
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per settled status
-  }, [importing.status])
+    if (request.source !== 'website' || startedSite.current) return
+    startedSite.current = true
+    void runImport(undefined, displayUrl(request.target))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [])
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [entries, thinking])
 
-  // What the crawl delivered, overlaid by what the chat has told us.
-  const profile = useMemo(
-    () => mergeProfile(importing.branding ? { branding: importing.branding } : {}, answers),
-    [importing.branding, answers],
-  )
-
   const sectionState = (section: Section): SectionState => {
     if (hasSection(profile, section)) return 'ready'
-    return importing.status === 'running' && IMPORTABLE.includes(section) ? 'loading' : 'empty'
+    const siteRunning = Object.values(jobs).some((job) => job.primary && (job.status === 'starting' || job.status === 'running'))
+    return siteRunning && section !== 'calendar' ? 'loading' : 'empty'
   }
 
   function send(text: string) {
@@ -95,23 +180,28 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     setEntries((current) => [...current, { id: nextId++, from: 'user', text: message }])
     setDraft('')
 
-    const current = script[turn]
-    if (current?.apply) {
-      const patch = current.apply(message)
-      setAnswers((previous) => mergeProfile(previous, patch))
+    // A link is a source to read, not an answer.
+    const link = findLink(message)
+    if (link) {
+      void runImport(link, displayUrl(link))
+      return
     }
+
+    const current = turn.current >= 0 ? SCRIPT[turn.current] : undefined
+    const patch = current?.apply?.(message, profile)
+    if (patch) setAnswers((previous) => mergeProfile(previous, patch))
+    const after = patch ? mergeProfile(profile, patch) : profile
 
     setThinking(true)
     setTimeout(() => {
-      const next = script[turn + 1]
-      setEntries((list) => [...list, next ? agent(next) : { id: nextId++, from: 'agent', text: AFTER_SCRIPT }])
-      if (next) setTurn(turn + 1)
+      const next = turn.current >= 0 ? nextTurn(after, turn.current + 1) : -1
+      turn.current = next
+      setEntries((list) => [...list, next >= 0 ? say(SCRIPT[next].ask, SCRIPT[next].quickReplies) : say(AFTER_SCRIPT)])
       setThinking(false)
     }, REPLY_MS)
   }
 
-  const label = request.source === 'instagram' ? `@${request.target}` : displayUrl(request.target)
-  const busy = thinking || importing.status === 'running'
+  const busy = thinking
   const lastId = entries[entries.length - 1]?.id
   const panel = (titled: boolean) => <ProfilePanel profile={profile} sectionState={sectionState} titled={titled} />
 
@@ -165,12 +255,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                   </MessageAvatar>
                   <MessageContent>
                     {entry.from === 'import' ? (
-                      <ImportMarker
-                        label={label}
-                        status={importing.status}
-                        pagesRead={importing.pagesRead}
-                        onSkip={importing.skip}
-                      />
+                      <ImportMarker {...jobs[entry.job]} onSkip={() => skip(entry.job)} />
                     ) : (
                       <Stack gap={3}>
                         <Bubble variant="muted">

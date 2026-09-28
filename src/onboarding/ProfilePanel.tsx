@@ -109,15 +109,24 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
         </Stack>
       )
     }
-    case 'location': {
-      const l = profile.location!
+    case 'location':
       return (
-        <Stack gap={3}>
-          <ItemTitle>{l.address}</ItemTitle>
-          {l.hours && <Rows rows={l.hours.map((row) => ({ label: row.days, value: row.time }))} />}
+        <Stack gap={4}>
+          {profile.locations!.map((location) => (
+            <Stack key={location.address} gap={3}>
+              <Stack gap={1}>
+                {location.name && <ItemTitle>{location.name}</ItemTitle>}
+                <ItemTitle>{location.address}</ItemTitle>
+              </Stack>
+              {location.hours.length > 0 ? (
+                <Rows rows={location.hours.map((row) => ({ label: row.days, value: row.time }))} />
+              ) : (
+                <ItemDescription>Opening hours not found yet.</ItemDescription>
+              )}
+            </Stack>
+          ))}
         </Stack>
       )
-    }
     case 'branding': {
       const b = profile.branding!
       return (
@@ -170,11 +179,11 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
       return (
         <Rows
           emphasis
-          rows={profile.catalog!.map((t) => ({
-            label: t.name,
-            detail: t.description,
-            value: t.price,
-            valueDetail: t.duration,
+          rows={profile.catalog!.map((item) => ({
+            label: item.name,
+            detail: item.category,
+            value: item.price ?? '—',
+            valueDetail: item.duration,
           }))}
         />
       )

@@ -32,20 +32,22 @@ confirms it, and what the owner says wins.
 
 ## Import (`functions/import`)
 
-`POST /functions/v1/import { business_id }` with the owner's session. Answers
-`202 { job_id }` and keeps working in the background:
+A Firecrawl crawl with JSON extraction on every page (Firecrawl's own model:
+no LLM key of ours). Split in two calls because a crawl can outlast an Edge
+Function's wall-clock limit:
 
-1. Firecrawl scrapes the home page: markdown, links and branding (logo, brand
-   colours, heading and body fonts).
-2. Up to 6 more pages are picked by their address (treatments, prices, hours,
-   contacts, about) and scraped. At most 7 Firecrawl credits per import.
-3. Every page goes into `scraped_pages`. Logo, the primary/secondary/accent
-   colours and the fonts are written to the profile straight away (the logo is
-   copied into `logos/`; Firecrawl's raw analysis stays in `import_jobs.raw_branding`).
+- `{ business_id }` starts the business's own site: reads the home page's
+  branding (logo, brand colours, heading/body fonts) straight away, then
+  crawls up to 25 pages. About 5 credits a page, ~125 for a full site.
+- `{ business_id, url }` starts an **extra source** pasted in the chat
+  (Treatwell, Fresha, Google Maps, a price list): up to 5 pages under that
+  URL, no branding, and it only **adds** to the profile.
+- `{ job_id }` checks progress. The client calls it every few seconds; once
+  the crawl is done it merges the pages into one profile and writes it.
 
-**No LLM yet.** Business, locations, catalog and tone of voice stay empty
-until an extraction step reads `scraped_pages`; the pages are kept precisely
-so that step can run later without scraping again.
+Pages are kept in `scraped_pages`. A first import replaces only rows it wrote
+itself (`source = 'import'`); what the owner said in the chat is never
+overwritten.
 
 ## Setup
 

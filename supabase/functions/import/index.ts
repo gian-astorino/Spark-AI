@@ -1,17 +1,36 @@
-// POST /functions/v1/import  { business_id }
+// POST /functions/v1/import
 //
-// Crawls the business's website: the home page plus the pages most likely to
-// hold treatments, prices, hours and contacts, stored in `scraped_pages` for
-// the extraction step that comes later. Logo and colours arrive already
-// structured from Firecrawl, so those go straight into the profile. Answers
-// 202 at once with the job id; the client follows `import_jobs` over Realtime.
+//   { business_id }  start: reads the home page's branding straight away and
+//                    starts a Firecrawl crawl (up to MAX_PAGES pages) that
+//                    extracts the profile from every page. Answers { job_id }.
+//   { business_id, url }
+//                    start an additional source (a Treatwell or Fresha page,
+//                    a price list…): crawls that page and what sits under it
+//                    (up to EXTRA_PAGES), no branding, and adds to the profile
+//                    instead of replacing what earlier imports found.
+//   { job_id }       check: reports the crawl's progress; once it has finished,
+//                    merges the pages into one profile and writes it. The
+//                    client calls this every few seconds while it waits.
+//
+// Split in two because a crawl with extraction can outlast an Edge Function's
+// wall-clock limit: nothing here waits for Firecrawl.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { scrape, type Branding, type ScrapedPage } from '../_shared/firecrawl.ts'
+import {
+  addressKey,
+  key,
+  mergePages,
+  PAGE_PROMPT,
+  PAGE_SCHEMA,
+  type MergedProfile,
+  type PageExtraction,
+} from '../_shared/extraction.ts'
+import { crawlStatus, scrape, startCrawl, type Branding } from '../_shared/firecrawl.ts'
 
-// Enough to find treatments, prices, hours and contacts on a small business
-// site, and a hard ceiling on Firecrawl credits per import (1 + 6).
-const MAX_EXTRA_PAGES = 6
+// 1 credit per page crawled + 4 for its JSON extraction: at most ~125 per site,
+// ~25 per additional source.
+const MAX_PAGES = 25
+const EXTRA_PAGES = 5
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -20,102 +39,242 @@ const cors = {
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors })
-
-  const { business_id } = await request.json().catch(() => ({}))
-  if (typeof business_id !== 'string') return json({ error: 'business_id is required' }, 400)
+  const body = await request.json().catch(() => ({}))
 
   // Ownership is checked with the caller's own token: RLS answers for us.
   const asUser = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
     global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } },
   })
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+
+  try {
+    if (typeof body.job_id === 'string') return await check(asUser, db, body.job_id)
+    if (typeof body.business_id === 'string') return await start(asUser, db, body.business_id, body.url)
+    return json({ error: 'business_id or job_id is required' }, 400)
+  } catch (failure) {
+    console.error(failure)
+    return json({ error: String(failure) }, 500)
+  }
+})
+
+async function start(asUser: SupabaseClient, db: SupabaseClient, businessId: string, extraUrl?: unknown) {
   const { data: business } = await asUser
     .from('businesses')
     .select('id, website_url')
-    .eq('id', business_id)
+    .eq('id', businessId)
     .maybeSingle()
   if (!business) return json({ error: 'Business not found' }, 404)
-  if (!business.website_url) return json({ error: 'The business has no website' }, 400)
 
-  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  const additive = extraUrl !== undefined
+  if (additive && (typeof extraUrl !== 'string' || !/^https?:\/\/[^\s]+\.[^\s]+/.test(extraUrl))) {
+    return json({ error: 'url must be an http(s) address' }, 400)
+  }
+  const target = additive ? (extraUrl as string) : business.website_url
+  if (!target) return json({ error: 'The business has no website' }, 400)
+
   const { data: job, error } = await db
     .from('import_jobs')
     .insert({
-      business_id,
+      business_id: businessId,
       source: 'website',
-      target: business.website_url,
+      target,
+      additive,
       status: 'running',
+      pages_total: additive ? EXTRA_PAGES : MAX_PAGES,
       started_at: new Date().toISOString(),
     })
     .select('id')
     .single()
-  if (error) return json({ error: error.message }, 500)
+  if (error) throw error
+  if (!additive) await db.from('businesses').update({ onboarding_status: 'importing' }).eq('id', businessId)
 
-  await db.from('businesses').update({ onboarding_status: 'importing' }).eq('id', business_id)
-
-  EdgeRuntime.waitUntil(
-    runImport(db, business_id, job.id, business.website_url).catch(async (failure) => {
-      console.error(failure)
-      await db
-        .from('import_jobs')
-        .update({ status: 'failed', error: String(failure), finished_at: new Date().toISOString() })
-        .eq('id', job.id)
-    }),
-  )
-
-  return json({ job_id: job.id }, 202)
-})
-
-// Path fragments, Italian and English, of the pages worth reading. Earlier
-// entries rank higher when a site has more candidates than MAX_EXTRA_PAGES.
-const USEFUL_PATHS = [
-  /tratt|servi|treatment|service|listino|prezz|price|menu/i,
-  /orari|hours|contatt|contact|dove|location|sede|sedi/i,
-  /chi-?siamo|about|team|staff|studio/i,
-]
-
-function pickPages(home: ScrapedPage): string[] {
-  // "example.com" often redirects to "www.example.com": both count as the site.
-  const host = (link: string) => new URL(link).hostname.replace(/^www\./, '')
-  const site = host(home.url)
-  const links = [...new Set(home.links.map((link) => link.split('#')[0]))].filter((link) => {
-    try {
-      return host(link) === site && new URL(link).pathname !== new URL(home.url).pathname
-    } catch {
-      return false // relative or malformed links are not worth a credit
+  try {
+    let url = target
+    if (!additive) {
+      // Branding comes from the business's own home page and needs no extraction.
+      const home = await scrape(target, true)
+      await db.from('import_jobs').update({ raw_branding: home.branding ?? null }).eq('id', job.id)
+      await saveBranding(db, businessId, home.branding)
+      await markDone(db, job.id, 'branding')
+      url = home.url
     }
-  }).filter((link) => !/\.(pdf|jpe?g|png|webp|svg)$/i.test(link))
-  const rank = (link: string) => {
-    const path = new URL(link).pathname
-    const index = USEFUL_PATHS.findIndex((pattern) => pattern.test(path))
-    return index === -1 ? Infinity : index
+    const crawlId = await startCrawl({
+      url,
+      limit: additive ? EXTRA_PAGES : MAX_PAGES,
+      sitemap: additive ? 'skip' : 'include',
+      schema: PAGE_SCHEMA,
+      prompt: PAGE_PROMPT,
+    })
+    await db.from('import_jobs').update({ firecrawl_id: crawlId }).eq('id', job.id)
+  } catch (failure) {
+    await fail(db, job.id, failure)
   }
-  return links
-    .filter((link) => rank(link) !== Infinity)
-    .sort((a, b) => rank(a) - rank(b))
-    .slice(0, MAX_EXTRA_PAGES)
+  return json({ job_id: job.id }, 202)
 }
 
-async function runImport(db: SupabaseClient, businessId: string, jobId: string, url: string) {
-  // 1. The home page, with its links and Firecrawl's branding analysis.
-  const home = await scrape(url, true)
+async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) {
+  const { data: job } = await asUser
+    .from('import_jobs')
+    .select('id, business_id, status, firecrawl_id, pages_read, pages_total, additive')
+    .eq('id', jobId)
+    .maybeSingle()
+  if (!job) return json({ error: 'Job not found' }, 404)
+  if (job.status !== 'running' || !job.firecrawl_id) return json(progress(job), 200)
 
-  // 2. The pages that look useful from their address. One that fails to load
-  //    is skipped, not fatal: the rest is still worth keeping.
-  const results = await Promise.allSettled(pickPages(home).map((link) => scrape(link)))
-  const pages = [home, ...results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))]
+  const crawl = await crawlStatus<PageExtraction>(job.firecrawl_id)
+  if (crawl.status === 'failed') {
+    await fail(db, job.id, 'Firecrawl crawl failed')
+    return json({ ...progress(job), status: 'failed' }, 200)
+  }
+  if (crawl.status === 'scraping') {
+    const update = { pages_read: crawl.completed, pages_total: Math.max(crawl.total, crawl.completed) }
+    await db.from('import_jobs').update(update).eq('id', job.id)
+    return json({ ...progress(job), ...update }, 200)
+  }
 
-  await db.from('scraped_pages').insert(
-    pages.map((page) => ({ job_id: jobId, url: page.url, title: page.title, markdown: page.markdown })),
+  // Completed. Only the check that claims the job processes it.
+  const { data: claimed } = await db
+    .from('import_jobs')
+    .update({ processing_started_at: new Date().toISOString() })
+    .eq('id', job.id)
+    .is('processing_started_at', null)
+    .select('id')
+  if (!claimed?.length) return json(progress(job), 200)
+
+  try {
+    const finished = await crawlStatus<PageExtraction>(job.firecrawl_id, true)
+    // The home page first: on a tie its answer wins.
+    const pages = [...finished.pages].sort((a, b) => a.url.length - b.url.length)
+    await db.from('scraped_pages').insert(
+      pages.map((page) => ({ job_id: job.id, url: page.url, title: page.title, markdown: page.markdown })),
+    )
+    const profile = mergePages(pages.map((page) => page.json ?? {}))
+    await (job.additive ? addToProfile : saveProfile)(db, job.business_id, job.id, profile)
+
+    const done = { status: 'done', pages_read: pages.length, pages_total: pages.length, finished_at: new Date().toISOString() }
+    await db.from('import_jobs').update(done).eq('id', job.id)
+    if (!job.additive) await db.from('businesses').update({ onboarding_status: 'chatting' }).eq('id', job.business_id)
+    return json({ ...progress(job), ...done }, 200)
+  } catch (failure) {
+    await fail(db, job.id, failure)
+    return json({ ...progress(job), status: 'failed' }, 200)
+  }
+}
+
+function progress(job: { id: string; status: string; pages_read: number; pages_total: number | null }) {
+  return { job_id: job.id, status: job.status, pages_read: job.pages_read, pages_total: job.pages_total }
+}
+
+async function fail(db: SupabaseClient, jobId: string, failure: unknown) {
+  console.error(failure)
+  await db
+    .from('import_jobs')
+    .update({ status: 'failed', error: String(failure), finished_at: new Date().toISOString() })
+    .eq('id', jobId)
+}
+
+// ---------------------------------------------------------------------------
+// Writing the profile. A re-import replaces only rows it wrote itself
+// (source = 'import'): what the owner said in the chat is never overwritten.
+// ---------------------------------------------------------------------------
+
+async function saveProfile(db: SupabaseClient, businessId: string, jobId: string, profile: MergedProfile) {
+  const { name, description, sector } = profile.business
+  if (name || description || sector) {
+    await db.from('businesses').update({ name, description, sector, source: 'import' }).eq('id', businessId)
+  }
+  await markDone(db, jobId, 'business')
+
+  await db.from('locations').delete().eq('business_id', businessId).eq('source', 'import')
+  for (const [position, location] of profile.locations.entries()) {
+    const { data } = await db
+      .from('locations')
+      .insert({ business_id: businessId, name: location.name, address: location.address, position, source: 'import' })
+      .select('id')
+      .single()
+    if (data && location.hours.length > 0) {
+      await db.from('opening_hours').insert(location.hours.map((row) => ({ location_id: data.id, ...row })))
+    }
+  }
+  await markDone(db, jobId, 'location')
+
+  if (profile.tone_of_voice.length > 0) {
+    // Upsert: a site without branding has no row yet. Only these columns change.
+    await db.from('brand_profiles').upsert({ business_id: businessId, tone_of_voice: profile.tone_of_voice, source: 'import' })
+  }
+
+  await db.from('catalog_items').delete().eq('business_id', businessId).eq('source', 'import')
+  if (profile.catalog.length > 0) {
+    await db.from('catalog_items').insert(
+      profile.catalog.map((item, position) => ({ business_id: businessId, ...item, position, source: 'import' })),
+    )
+  }
+  await markDone(db, jobId, 'catalog')
+}
+
+/**
+ * An additional source only fills gaps: empty business fields, locations and
+ * treatments not seen yet, hours for a location that had none, and the price
+ * or duration a known treatment was missing. It never removes anything.
+ */
+async function addToProfile(db: SupabaseClient, businessId: string, jobId: string, profile: MergedProfile) {
+  const { data: business } = await db.from('businesses').select('name, description, sector').eq('id', businessId).single()
+  const fill = Object.fromEntries(
+    (['name', 'description', 'sector'] as const)
+      .filter((field) => !business?.[field] && profile.business[field])
+      .map((field) => [field, profile.business[field]]),
   )
-  await db.from('import_jobs').update({ pages_read: pages.length }).eq('id', jobId)
+  if (Object.keys(fill).length > 0) await db.from('businesses').update(fill).eq('id', businessId)
+  await markDone(db, jobId, 'business')
 
-  // 3. Branding needs no extraction: Firecrawl already returns it structured.
-  await db.from('import_jobs').update({ raw_branding: home.branding ?? null }).eq('id', jobId)
-  await saveBranding(db, businessId, home.branding)
-  await markDone(db, jobId, 'branding')
+  const { data: known } = await db
+    .from('locations')
+    .select('id, address, opening_hours(id)')
+    .eq('business_id', businessId)
+  const byAddress = new Map((known ?? []).map((location) => [addressKey(location.address), location]))
+  for (const location of profile.locations) {
+    const existing = byAddress.get(addressKey(location.address))
+    let locationId = existing?.id
+    if (!existing) {
+      const { data } = await db
+        .from('locations')
+        .insert({ business_id: businessId, name: location.name, address: location.address, position: byAddress.size, source: 'import' })
+        .select('id')
+        .single()
+      locationId = data?.id
+    }
+    const hasHours = (existing?.opening_hours?.length ?? 0) > 0
+    if (locationId && !hasHours && location.hours.length > 0) {
+      await db.from('opening_hours').insert(location.hours.map((row) => ({ location_id: locationId, ...row })))
+    }
+  }
+  await markDone(db, jobId, 'location')
 
-  await db.from('import_jobs').update({ status: 'done', finished_at: new Date().toISOString() }).eq('id', jobId)
-  await db.from('businesses').update({ onboarding_status: 'chatting' }).eq('id', businessId)
+  const { data: items } = await db
+    .from('catalog_items')
+    .select('id, name, description, category, price_cents, duration_minutes')
+    .eq('business_id', businessId)
+  const byName = new Map((items ?? []).map((item) => [key(item.name), item]))
+  const fresh = []
+  for (const item of profile.catalog) {
+    const existing = byName.get(key(item.name))
+    if (!existing) {
+      fresh.push(item)
+      continue
+    }
+    const patch = Object.fromEntries(
+      (['description', 'category', 'price_cents', 'duration_minutes'] as const)
+        .filter((field) => existing[field] == null && item[field] != null)
+        .map((field) => [field, item[field]]),
+    )
+    if (Object.keys(patch).length > 0) await db.from('catalog_items').update(patch).eq('id', existing.id)
+  }
+  if (fresh.length > 0) {
+    await db.from('catalog_items').insert(
+      fresh.map((item, index) => ({ business_id: businessId, ...item, position: byName.size + index, source: 'import' })),
+    )
+  }
+  await markDone(db, jobId, 'catalog')
 }
 
 // Firecrawl names colours by their role on the page. Only the brand ones are
