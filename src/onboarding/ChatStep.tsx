@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Bubble,
   BubbleContent,
@@ -22,23 +22,12 @@ import {
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/core-free-icons'
-import { checkImport, createBusiness, loadProfile, startImport } from './backend.ts'
+import { askAgent, checkImport, createBusiness, loadProfile, startImport } from './backend.ts'
 import { Icon } from './Icon.tsx'
 import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
-import { hasSection, mergeProfile, type Profile, type Section } from './profile.ts'
-import {
-  AFTER_SCRIPT,
-  EXTRA_FAILED,
-  NO_WEBSITE,
-  SCRIPT,
-  SITE_FAILED,
-  WAITING,
-  afterExtraImport,
-  afterSiteImport,
-  findLink,
-  nextTurn,
-} from './script.ts'
+import { hasSection, type Profile, type Section } from './profile.ts'
+import { EVENTS, WAITING, findLink } from './script.ts'
 import { SparkMark } from './SparkMark.tsx'
 import { displayUrl, type ImportRequest } from './types.ts'
 
@@ -56,37 +45,22 @@ interface Job {
   pagesTotal: number
 }
 
-const REPLY_MS = 900
 const POLL_MS = 3000
+const AGENT_DOWN = "Sorry, I can't answer right now. Try again in a moment."
 let nextId = 0
 
 const say = (text: string, quickReplies?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies })
 
 export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: () => void }) {
-  const [entries, setEntries] = useState<Entry[]>(() =>
-    request.source === 'website' ? [say(WAITING)] : [say(NO_WEBSITE), say(SCRIPT[0].ask)],
-  )
+  const [entries, setEntries] = useState<Entry[]>(() => (request.source === 'website' ? [say(WAITING)] : []))
   const [jobs, setJobs] = useState<Record<string, Job>>({})
-  const [imported, setImported] = useState<Profile>({})
-  const [answers, setAnswers] = useState<Profile>({})
-  // The question currently asked; -1 before the first one and once done.
-  // A ref: it steers replies but is never rendered.
-  const turn = useRef(request.source === 'website' ? -1 : 0)
+  const [profile, setProfile] = useState<Profile>({})
   const [draft, setDraft] = useState('')
-  const [thinking, setThinking] = useState(false)
+  // Agent turns in flight: the typing indicator shows while any is.
+  const [pending, setPending] = useState(0)
   const end = useRef<HTMLDivElement>(null)
   const business = useRef<Promise<string> | null>(null)
   const stopped = useRef(new Set<string>())
-
-  // What the imports delivered, overlaid by what the chat has told us.
-  const profile = useMemo(() => mergeProfile(imported, answers), [imported, answers])
-  // Imports settle minutes after they start: read current state, not the closure's.
-  const latest = useRef(profile)
-  latest.current = profile
-  const latestImported = useRef(imported)
-  latestImported.current = imported
-  const latestAnswers = useRef(answers)
-  latestAnswers.current = answers
 
   /** The business row, created once, on first need. */
   function businessId() {
@@ -94,7 +68,31 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     return business.current
   }
 
-  /** Starts an import, shows its marker, follows it, and reports when it settles. */
+  /** The panel reads the database: imports and the agent both write there. */
+  async function refreshProfile() {
+    try {
+      setProfile(await loadProfile(await businessId()))
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  /** One agent turn; its reply joins the conversation and the panel catches up. */
+  async function agentTurn(turn: { message: string } | { event: string }) {
+    setPending((count) => count + 1)
+    try {
+      const { reply, choices } = await askAgent(await businessId(), turn)
+      if (reply) setEntries((list) => [...list, say(reply, choices.length ? choices : undefined)])
+      await refreshProfile()
+    } catch (error) {
+      console.error(error)
+      setEntries((list) => [...list, say(AGENT_DOWN)])
+    } finally {
+      setPending((count) => count - 1)
+    }
+  }
+
+  /** Starts an import, shows its marker, follows it, then lets the agent report. */
   async function runImport(url: string | undefined, label: string) {
     const primary = url === undefined
     const markerKey = `pending-${nextId}`
@@ -104,29 +102,21 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     setEntries((current) => [...current, { id: nextId++, from: 'import', job }])
 
     const settle = async (status: 'done' | 'failed', pagesRead: number) => {
-      const before = latest.current
-      const id = await businessId()
-      const after = await loadProfile(id).catch(() => latestImported.current)
-      setImported(after)
-      const merged = mergeProfile(after, latestAnswers.current)
-      let text: string
-      if (primary) text = status === 'done' ? afterSiteImport(merged, pagesRead) : SITE_FAILED
-      else text = status === 'done' ? afterExtraImport(before, merged, label) : EXTRA_FAILED(label)
-      // Then pick the conversation back up where it is needed.
-      const next = nextTurn(merged, primary ? 0 : Math.max(turn.current, 0))
-      turn.current = next
-      setEntries((list) => [...list, say(text), ...(next >= 0 ? [say(SCRIPT[next].ask, SCRIPT[next].quickReplies)] : [])])
+      await refreshProfile()
+      if (primary) await agentTurn({ event: status === 'done' ? EVENTS.siteDone(pagesRead) : EVENTS.siteFailed })
+      else await agentTurn({ event: status === 'done' ? EVENTS.extraDone(url) : EVENTS.extraFailed(url) })
     }
 
     try {
-      const id = await businessId()
-      const started = await startImport(id, url)
+      const started = await startImport(await businessId(), url)
       // Re-key the marker from its placeholder to the real job id.
       setJobs((current) => {
-        const { [markerKey]: pending, ...rest } = current
-        return { ...rest, [started]: { ...pending, status: 'running' } }
+        const { [markerKey]: placeholder, ...rest } = current
+        return { ...rest, [started]: { ...placeholder, status: 'running' } }
       })
-      setEntries((current) => current.map((entry) => (entry.from === 'import' && entry.job === markerKey ? { ...entry, job: started } : entry)))
+      setEntries((current) =>
+        current.map((entry) => (entry.from === 'import' && entry.job === markerKey ? { ...entry, job: started } : entry)),
+      )
       if (stopped.current.has(markerKey)) stopped.current.add(started)
       job = started
 
@@ -148,25 +138,22 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   function skip(job: string) {
     stopped.current.add(job)
     setJobs((current) => ({ ...current, [job]: { ...current[job], status: 'skipped' } }))
-    if (jobs[job]?.primary) {
-      const next = nextTurn(latest.current, 0)
-      turn.current = next
-      if (next >= 0) setEntries((list) => [...list, say(SCRIPT[next].ask, SCRIPT[next].quickReplies)])
-    }
+    if (jobs[job]?.primary) void refreshProfile().then(() => agentTurn({ event: EVENTS.siteSkipped }))
   }
 
-  // The business's own site, once.
-  const startedSite = useRef(false)
+  // Opening: read the site, or let the agent greet an owner without one. Once.
+  const opened = useRef(false)
   useEffect(() => {
-    if (request.source !== 'website' || startedSite.current) return
-    startedSite.current = true
-    void runImport(undefined, displayUrl(request.target))
+    if (opened.current) return
+    opened.current = true
+    if (request.source === 'website') void runImport(undefined, displayUrl(request.target))
+    else void agentTurn({ event: EVENTS.noWebsite })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
   }, [])
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [entries, thinking])
+  }, [entries, pending])
 
   const sectionState = (section: Section): SectionState => {
     if (hasSection(profile, section)) return 'ready'
@@ -176,31 +163,17 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
 
   function send(text: string) {
     const message = text.trim()
-    if (!message || thinking) return
+    if (!message || pending > 0) return
     setEntries((current) => [...current, { id: nextId++, from: 'user', text: message }])
     setDraft('')
 
-    // A link is a source to read, not an answer.
+    // A link is a source for the app to read; the agent hears about it after.
     const link = findLink(message)
-    if (link) {
-      void runImport(link, displayUrl(link))
-      return
-    }
-
-    const current = turn.current >= 0 ? SCRIPT[turn.current] : undefined
-    const patch = current?.apply?.(message, profile)
-    if (patch) setAnswers((previous) => mergeProfile(previous, patch))
-    const after = patch ? mergeProfile(profile, patch) : profile
-
-    setThinking(true)
-    setTimeout(() => {
-      const next = turn.current >= 0 ? nextTurn(after, turn.current + 1) : -1
-      turn.current = next
-      setEntries((list) => [...list, next >= 0 ? say(SCRIPT[next].ask, SCRIPT[next].quickReplies) : say(AFTER_SCRIPT)])
-      setThinking(false)
-    }, REPLY_MS)
+    if (link) void runImport(link, displayUrl(link))
+    else void agentTurn({ message })
   }
 
+  const thinking = pending > 0
   const busy = thinking
   const lastId = entries[entries.length - 1]?.id
   const panel = (titled: boolean) => <ProfilePanel profile={profile} sectionState={sectionState} titled={titled} />

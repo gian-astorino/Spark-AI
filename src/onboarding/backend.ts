@@ -42,8 +42,29 @@ export async function checkImport(jobId: string): Promise<ImportProgress> {
   }
 }
 
+export interface AgentReply {
+  reply: string
+  choices: string[]
+}
+
+/** One conversation turn: what the owner typed, or something the app reports. */
+export async function askAgent(businessId: string, turn: { message: string } | { event: string }): Promise<AgentReply> {
+  const { data, error } = await supabase.functions.invoke('agent', { body: { business_id: businessId, ...turn } })
+  if (error) throw error
+  return { reply: data.reply ?? '', choices: data.choices ?? [] }
+}
+
+const CALENDARS: Record<string, string> = {
+  google_calendar: 'Google Calendar',
+  outlook: 'Outlook',
+  apple_calendar: 'Apple Calendar',
+  fresha: 'Fresha',
+  treatwell: 'Treatwell',
+  paper: 'Paper diary',
+}
+
 export async function loadProfile(businessId: string): Promise<Profile> {
-  const [business, locations, brand, colors, catalog] = await Promise.all([
+  const [business, locations, brand, colors, catalog, team, calendar] = await Promise.all([
     supabase.from('businesses').select('name, description, sector').eq('id', businessId).single(),
     supabase
       .from('locations')
@@ -57,6 +78,8 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       .select('name, description, category, price_cents, currency, duration_minutes, position')
       .eq('business_id', businessId)
       .order('position'),
+    supabase.from('team_members').select('display_name, position').eq('business_id', businessId).order('position'),
+    supabase.from('calendar_setups').select('provider, provider_label').eq('business_id', businessId).maybeSingle(),
   ])
 
   const profile: Profile = {}
@@ -93,6 +116,12 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       price: item.price_cents == null ? undefined : formatPrice(item.price_cents, item.currency),
       duration: item.duration_minutes == null ? undefined : `${item.duration_minutes} min`,
     }))
+  }
+  if (team.data?.length || calendar.data) {
+    profile.calendar = {
+      members: team.data?.map((member) => member.display_name),
+      tool: calendar.data ? (calendar.data.provider_label ?? CALENDARS[calendar.data.provider] ?? calendar.data.provider) : undefined,
+    }
   }
   return profile
 }

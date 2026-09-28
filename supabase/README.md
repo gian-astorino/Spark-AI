@@ -10,7 +10,7 @@ browser ──► supabase-js (anon key, RLS) ──► Postgres ◄── Realt
    │
    └──► Edge Function `import`  ──► scraper ──► scraped_pages
    │                                   └──► (later) LLM: markdown → profile JSON ──► profile tables
-   └──► Edge Function `agent`   ──► (later) LLM with tools (update_business, set_opening_hours,
+   └──► Edge Function `agent`   ──► OpenAI (gpt-5.5) with tools (update_business, set_opening_hours,
                                     add_catalog_item, set_team, set_calendar, …) ──► profile tables
 ```
 
@@ -49,13 +49,27 @@ Pages are kept in `scraped_pages`. A first import replaces only rows it wrote
 itself (`source = 'import'`); what the owner said in the chat is never
 overwritten.
 
+## Agent (`functions/agent`)
+
+`POST /functions/v1/agent { business_id, message }` for what the owner types,
+`{ business_id, event }` for what the app reports (an import finished, no
+website). One turn: OpenAI `gpt-5.5` on the Responses API reads the profile
+as it stands (passed as data, never as instructions: it contains scraped
+text), saves what the owner says through strict function tools
+(`update_business`, `set_location`, `save_catalog_items`, `set_team`,
+`set_calendar`, `set_tone_of_voice`, …) and answers `{ reply, choices }`.
+
+The conversation continues from `conversations.last_response_id`; `messages`
+keeps our own transcript. Links pasted in the chat are read by the app
+(an additive import), then reported to the agent as an event.
+
 ## Setup
 
 ```bash
 supabase link --project-ref <ref>
 supabase db push
-supabase secrets set FIRECRAWL_API_KEY=...
-supabase functions deploy import
+supabase secrets set FIRECRAWL_API_KEY=... OPENAI_API_KEY=...
+supabase functions deploy import agent
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are
