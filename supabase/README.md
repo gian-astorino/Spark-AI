@@ -9,8 +9,8 @@ own business.
 browser ──► supabase-js (anon key, RLS) ──► Postgres ◄── Realtime ──► panel
    │
    └──► Edge Function `import`  ──► scraper ──► scraped_pages
-   │                                   └──► OpenAI: markdown → profile JSON ──► profile tables
-   └──► Edge Function `agent`   ──► OpenAI with tools (update_business, set_opening_hours,
+   │                                   └──► (later) LLM: markdown → profile JSON ──► profile tables
+   └──► Edge Function `agent`   ──► (later) LLM with tools (update_business, set_opening_hours,
                                     add_catalog_item, set_team, set_calendar, …) ──► profile tables
 ```
 
@@ -36,22 +36,21 @@ confirms it, and what the owner says wins.
 `202 { job_id }` and keeps working in the background:
 
 1. Firecrawl scrapes the home page: markdown, links and branding (logo, colours).
-2. The model picks up to 6 useful pages from the site's links; Firecrawl scrapes them.
-   At most 7 Firecrawl credits per import.
-3. OpenAI (`gpt-5.5`, Responses API, structured output from the Zod schema) extracts
-   business, locations and hours, tone of voice and catalog from all pages.
-4. Each section is written and appended to `import_jobs.sections_done`; the
-   frontend follows both over Realtime. The logo is copied into `logos/`.
+2. Up to 6 more pages are picked by their address (treatments, prices, hours,
+   contacts, about) and scraped. At most 7 Firecrawl credits per import.
+3. Every page goes into `scraped_pages`. Logo and colours are written to the
+   profile straight away (the logo is copied into `logos/`).
 
-A re-import replaces only rows with `source = 'import'`: what the owner said
-in the chat is never overwritten.
+**No LLM yet.** Business, locations, catalog and tone of voice stay empty
+until an extraction step reads `scraped_pages`; the pages are kept precisely
+so that step can run later without scraping again.
 
 ## Setup
 
 ```bash
 supabase link --project-ref <ref>
 supabase db push
-supabase secrets set OPENAI_API_KEY=... FIRECRAWL_API_KEY=...
+supabase secrets set FIRECRAWL_API_KEY=...
 supabase functions deploy import
 ```
 

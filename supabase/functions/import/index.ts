@@ -1,14 +1,13 @@
 // POST /functions/v1/import  { business_id }
 //
-// Reads the business's website and writes what it finds into the profile:
-// business, locations and hours, branding, catalog. Answers 202 at once with
-// the job id; the client follows `import_jobs` and the profile tables over
-// Realtime while the work runs in the background.
+// Crawls the business's website: the home page plus the pages most likely to
+// hold treatments, prices, hours and contacts, stored in `scraped_pages` for
+// the extraction step that comes later. Logo and colours arrive already
+// structured from Firecrawl, so those go straight into the profile. Answers
+// 202 at once with the job id; the client follows `import_jobs` over Realtime.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { extract, pagesAsInput } from '../_shared/llm.ts'
 import { scrape, type Branding, type ScrapedPage } from '../_shared/firecrawl.ts'
-import { ExtractedProfile, PagePicks } from '../_shared/profile-schema.ts'
 
 // Enough to find treatments, prices, hours and contacts on a small business
 // site, and a hard ceiling on Firecrawl credits per import (1 + 6).
@@ -66,93 +65,58 @@ Deno.serve(async (request) => {
   return json({ job_id: job.id }, 202)
 })
 
+// Path fragments, Italian and English, of the pages worth reading. Earlier
+// entries rank higher when a site has more candidates than MAX_EXTRA_PAGES.
+const USEFUL_PATHS = [
+  /tratt|servi|treatment|service|listino|prezz|price|menu/i,
+  /orari|hours|contatt|contact|dove|location|sede|sedi/i,
+  /chi-?siamo|about|team|staff|studio/i,
+]
+
+function pickPages(home: ScrapedPage): string[] {
+  const origin = new URL(home.url).origin
+  const links = [...new Set(home.links.map((link) => link.split('#')[0]))].filter(
+    (link) => link.startsWith(origin) && link !== home.url && !/\.(pdf|jpe?g|png|webp|svg)$/i.test(link),
+  )
+  const rank = (link: string) => {
+    const path = new URL(link).pathname
+    const index = USEFUL_PATHS.findIndex((pattern) => pattern.test(path))
+    return index === -1 ? Infinity : index
+  }
+  return links
+    .filter((link) => rank(link) !== Infinity)
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, MAX_EXTRA_PAGES)
+}
+
 async function runImport(db: SupabaseClient, businessId: string, jobId: string, url: string) {
   // 1. The home page, with its links and Firecrawl's branding analysis.
   const home = await scrape(url, true)
 
-  // 2. The model picks the pages worth reading from the site's own links.
-  const origin = new URL(home.url).origin
-  const candidates = [...new Set(home.links)].filter((link) => link.startsWith(origin) && link !== home.url)
-  let extra: ScrapedPage[] = []
-  if (candidates.length > 0) {
-    const picks = await extract({
-      name: 'page_picks',
-      schema: PagePicks,
-      effort: 'low',
-      instructions:
-        'You choose which pages of a local business website to read. Prefer pages about services or treatments, prices, opening hours, contacts and locations, and the team. Return at most 6 URLs, only from the list given.',
-      input: candidates.join('\n'),
-    })
-    const chosen = picks.urls.filter((link) => candidates.includes(link)).slice(0, MAX_EXTRA_PAGES)
-    // A page that fails to load is skipped, not fatal: the rest is still useful.
-    const results = await Promise.allSettled(chosen.map((link) => scrape(link)))
-    extra = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
-  }
+  // 2. The pages that look useful from their address. One that fails to load
+  //    is skipped, not fatal: the rest is still worth keeping.
+  const results = await Promise.allSettled(pickPages(home).map((link) => scrape(link)))
+  const pages = [home, ...results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))]
 
-  const pages = [home, ...extra]
   await db.from('scraped_pages').insert(
     pages.map((page) => ({ job_id: jobId, url: page.url, title: page.title, markdown: page.markdown })),
   )
 
-  // 3. One extraction over every page.
-  const profile = await extract({
-    name: 'business_profile',
-    schema: ExtractedProfile,
-    instructions: [
-      'You extract a business profile from the pages of its website, for a booking and marketing assistant.',
-      'Only use what the pages say. When something is not stated, return null or an empty list: never guess prices, durations or hours.',
-      'Keep names and descriptions in the language of the site.',
-    ].join(' '),
-    input: pagesAsInput(pages),
-  })
-
-  // 4. Write section by section, so the panel fills in as each one lands.
-  await saveBusiness(db, businessId, profile)
-  await markDone(db, jobId, 'business')
-  await saveLocations(db, businessId, profile)
-  await markDone(db, jobId, 'location')
-  await saveBranding(db, businessId, profile, home.branding)
+  // 3. Branding needs no extraction: Firecrawl already returns it structured.
+  await saveBranding(db, businessId, home.branding)
   await markDone(db, jobId, 'branding')
-  await saveCatalog(db, businessId, profile)
-  await markDone(db, jobId, 'catalog')
 
   await db.from('import_jobs').update({ status: 'done', finished_at: new Date().toISOString() }).eq('id', jobId)
   await db.from('businesses').update({ onboarding_status: 'chatting' }).eq('id', businessId)
 }
 
-async function saveBusiness(db: SupabaseClient, businessId: string, profile: ExtractedProfile) {
-  const { name, description, sector } = profile.business
-  await db.from('businesses').update({ name, description, sector, source: 'import' }).eq('id', businessId)
-}
-
-async function saveLocations(db: SupabaseClient, businessId: string, profile: ExtractedProfile) {
-  // Re-importing replaces what a previous import wrote, never what the owner said.
-  await db.from('locations').delete().eq('business_id', businessId).eq('source', 'import')
-  for (const [position, location] of profile.locations.entries()) {
-    const { data } = await db
-      .from('locations')
-      .insert({ business_id: businessId, name: location.name, address: location.address, position, source: 'import' })
-      .select('id')
-      .single()
-    const hours = location.hours.filter((row) => row.closes_at > row.opens_at)
-    if (data && hours.length > 0) {
-      await db.from('opening_hours').insert(hours.map((row) => ({ location_id: data.id, ...row })))
-    }
-  }
-}
-
-async function saveBranding(
-  db: SupabaseClient,
-  businessId: string,
-  profile: ExtractedProfile,
-  branding: Branding | undefined,
-) {
+async function saveBranding(db: SupabaseClient, businessId: string, branding: Branding | undefined) {
+  if (!branding) return
   const logo = branding?.logo ? await storeLogo(db, businessId, branding.logo) : null
   await db.from('brand_profiles').upsert({
     business_id: businessId,
     logo_path: logo,
     logo_source_url: branding?.logo ?? null,
-    tone_of_voice: profile.tone_of_voice,
     source: 'import',
   })
 
@@ -163,14 +127,6 @@ async function saveBranding(
       colors.map(([role, hex], position) => ({ business_id: businessId, name: role, hex, position, source: 'import' })),
     )
   }
-}
-
-async function saveCatalog(db: SupabaseClient, businessId: string, profile: ExtractedProfile) {
-  await db.from('catalog_items').delete().eq('business_id', businessId).eq('source', 'import')
-  if (profile.catalog.length === 0) return
-  await db.from('catalog_items').insert(
-    profile.catalog.map((item, position) => ({ business_id: businessId, ...item, position, source: 'import' })),
-  )
 }
 
 /** Copies the logo into our own storage: the site may change or disappear. */
