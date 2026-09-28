@@ -29,3 +29,31 @@ confirms it, and what the owner says wins.
 | Calendar | `team_members`, `calendar_setups` |
 | Import | `import_jobs`, `scraped_pages` (kept to re-run extraction) |
 | Chat | `conversations`, `messages` (append-only, model content blocks verbatim) |
+
+## Import (`functions/import`)
+
+`POST /functions/v1/import { business_id }` with the owner's session. Answers
+`202 { job_id }` and keeps working in the background:
+
+1. Firecrawl scrapes the home page: markdown, links and branding (logo, colours).
+2. Claude picks up to 6 useful pages from the site's links; Firecrawl scrapes them.
+   At most 7 Firecrawl credits per import.
+3. Claude (`claude-opus-5`, structured output validated with Zod) extracts
+   business, locations and hours, tone of voice and catalog from all pages.
+4. Each section is written and appended to `import_jobs.sections_done`; the
+   frontend follows both over Realtime. The logo is copied into `logos/`.
+
+A re-import replaces only rows with `source = 'import'`: what the owner said
+in the chat is never overwritten.
+
+## Setup
+
+```bash
+supabase link --project-ref <ref>
+supabase db push
+supabase secrets set ANTHROPIC_API_KEY=... FIRECRAWL_API_KEY=...
+supabase functions deploy import
+```
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are
+provided to Edge Functions automatically.
