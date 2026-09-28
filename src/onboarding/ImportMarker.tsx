@@ -12,7 +12,7 @@ import {
 } from '@skyground-media/pipelean-design-system'
 import { Cancel01Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
 import { Icon } from './Icon.tsx'
-import { SECTIONS, SECTION_TITLES } from './profile.ts'
+import { IMPORTABLE, SECTION_TITLES } from './profile.ts'
 import type { ImportStatus } from './useImport.ts'
 
 /** The import, shown inline in the conversation like a tool call. */
@@ -36,13 +36,13 @@ export function ImportMarker({
         </ItemMedia>
         <ItemContent>
           <ItemTitle>{done ? `Imported from ${label}` : `Import from ${label} skipped`}</ItemTitle>
-          {done && <ItemDescription>{SECTIONS.map((s) => SECTION_TITLES[s]).join(' · ')}</ItemDescription>}
+          {done && <ItemDescription>{IMPORTABLE.map((s) => SECTION_TITLES[s]).join(' · ')}</ItemDescription>}
         </ItemContent>
       </Item>
     )
   }
 
-  const current = SECTIONS[Math.min(ready, SECTIONS.length - 1)]
+  const current = IMPORTABLE[Math.min(ready, IMPORTABLE.length - 1)]
   return (
     <Item variant="outline" size="sm">
       <ItemMedia variant="icon">
@@ -53,10 +53,10 @@ export function ImportMarker({
           <Stack gap={1}>
             <ItemTitle>Importing from {label}</ItemTitle>
             <ItemDescription>
-              Reading {SECTION_TITLES[current].toLowerCase()}… {ready} of {SECTIONS.length}
+              Reading {SECTION_TITLES[current].toLowerCase()}… {ready} of {IMPORTABLE.length}
             </ItemDescription>
           </Stack>
-          <Progress value={(ready / SECTIONS.length) * 100} />
+          <Progress value={(ready / IMPORTABLE.length) * 100} />
         </Stack>
       </ItemContent>
       <ItemActions>

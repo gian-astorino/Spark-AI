@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { SECTIONS, type Section } from './profile.ts'
+import { IMPORTABLE } from './profile.ts'
 import type { ImportRequest } from './types.ts'
 
 export type ImportStatus = 'idle' | 'running' | 'done' | 'skipped'
@@ -13,7 +13,7 @@ export function useImport(request: ImportRequest) {
 
   useEffect(() => {
     if (status !== 'running') return
-    if (ready === SECTIONS.length) {
+    if (ready === IMPORTABLE.length) {
       setStatus('done')
       return
     }
@@ -21,11 +21,5 @@ export function useImport(request: ImportRequest) {
     return () => clearTimeout(timer)
   }, [status, ready])
 
-  const sectionState = (section: Section): 'ready' | 'loading' | 'empty' => {
-    const index = SECTIONS.indexOf(section)
-    if (index < ready) return 'ready'
-    return status === 'running' ? 'loading' : 'empty'
-  }
-
-  return { status, ready, sectionState, skip: () => setStatus('skipped') }
+  return { status, ready, skip: () => setStatus('skipped') }
 }

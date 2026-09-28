@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bubble,
   BubbleContent,
-  BubbleGroup,
   Button,
   Inline,
   InputGroup,
@@ -24,64 +23,96 @@ import {
 } from '@skyground-media/pipelean-design-system'
 import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/core-free-icons'
 import { Icon } from './Icon.tsx'
-import { SparkMark } from './SparkMark.tsx'
 import { ImportMarker } from './ImportMarker.tsx'
-import { ProfilePanel } from './ProfilePanel.tsx'
-import { mockProfile } from './profile.ts'
-import { AFTER_IMPORT, AFTER_SKIP, FOLLOW_UPS, openingLine } from './script.ts'
+import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
+import { IMPORTABLE, MOCK_IMPORT, hasSection, mergeProfile, type Profile, type Section } from './profile.ts'
+import { AFTER_IMPORT, AFTER_SCRIPT, FROM_CHAT, NO_WEBSITE, WAITING, type Turn } from './script.ts'
+import { SparkMark } from './SparkMark.tsx'
 import { displayUrl, type ImportRequest } from './types.ts'
 import { useImport } from './useImport.ts'
 
 type Entry =
-  | { id: number; from: 'agent' | 'user'; text: string; quickReplies?: boolean }
+  | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
+  | { id: number; from: 'user'; text: string }
   | { id: number; from: 'import' }
 
 const REPLY_MS = 900
 let nextId = 0
 
+const agent = (turn: Turn): Entry => ({ id: nextId++, from: 'agent', text: turn.ask, quickReplies: turn.quickReplies })
+
 export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: () => void }) {
   const importing = useImport(request)
-  const profile = useMemo(() => mockProfile(request), [request])
-  const [entries, setEntries] = useState<Entry[]>(() => [
-    { id: nextId++, from: 'agent', text: openingLine(request) },
-    ...(request.source === 'none' ? [] : [{ id: nextId++, from: 'import' as const }]),
-  ])
+  const [entries, setEntries] = useState<Entry[]>(() =>
+    request.source === 'none'
+      ? [{ id: nextId++, from: 'agent', text: NO_WEBSITE }, agent(FROM_CHAT[0])]
+      : [
+          { id: nextId++, from: 'agent', text: WAITING },
+          { id: nextId++, from: 'import' },
+        ],
+  )
+  // The questions still to go through, and the one currently asked.
+  const [script, setScript] = useState<Turn[]>(request.source === 'none' ? FROM_CHAT : [])
+  const [turn, setTurn] = useState(0)
+  const [answers, setAnswers] = useState<Profile>({})
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
-  const followUp = useRef(0)
   const end = useRef<HTMLDivElement>(null)
 
-  // The agent speaks once the import settles, either way.
+  // Once the import settles, either way, the agent takes over.
   useEffect(() => {
-    if (importing.status === 'done' || importing.status === 'skipped') {
-      const text = importing.status === 'done' ? AFTER_IMPORT : AFTER_SKIP
-      const quickReplies = importing.status === 'done'
-      setEntries((current) => [...current, { id: nextId++, from: 'agent', text, quickReplies }])
-    }
+    if (importing.status !== 'done' && importing.status !== 'skipped') return
+    const next = importing.status === 'done' ? AFTER_IMPORT : FROM_CHAT
+    setScript(next)
+    setTurn(0)
+    setEntries((current) => [...current, agent(next[0])])
   }, [importing.status])
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [entries, thinking])
 
+  // What the import has delivered so far, overlaid by what the chat has told us.
+  const profile = useMemo(() => {
+    let imported: Profile = {}
+    if (importing.status !== 'skipped') {
+      for (const section of IMPORTABLE.slice(0, importing.ready)) {
+        imported = { ...imported, [section]: MOCK_IMPORT[section as keyof typeof MOCK_IMPORT] }
+      }
+    }
+    return mergeProfile(imported, answers)
+  }, [importing.status, importing.ready, answers])
+
+  const sectionState = (section: Section): SectionState => {
+    if (hasSection(profile, section)) return 'ready'
+    return importing.status === 'running' && IMPORTABLE.includes(section) ? 'loading' : 'empty'
+  }
+
   function send(text: string) {
     const message = text.trim()
     if (!message || thinking) return
     setEntries((current) => [...current, { id: nextId++, from: 'user', text: message }])
     setDraft('')
+
+    const current = script[turn]
+    if (current?.apply) {
+      const patch = current.apply(message)
+      setAnswers((previous) => mergeProfile(previous, patch))
+    }
+
     setThinking(true)
     setTimeout(() => {
-      const reply = FOLLOW_UPS[Math.min(followUp.current, FOLLOW_UPS.length - 1)]
-      followUp.current += 1
-      setEntries((current) => [...current, { id: nextId++, from: 'agent', text: reply }])
+      const next = script[turn + 1]
+      setEntries((list) => [...list, next ? agent(next) : { id: nextId++, from: 'agent', text: AFTER_SCRIPT }])
+      if (next) setTurn(turn + 1)
       setThinking(false)
     }, REPLY_MS)
   }
 
   const label = request.source === 'instagram' ? `@${request.target}` : displayUrl(request.target)
   const busy = thinking || importing.status === 'running'
-  const answered = entries.some((entry) => entry.from === 'user')
-  const panel = <ProfilePanel profile={profile} sectionState={importing.sectionState} />
+  const lastId = entries[entries.length - 1]?.id
+  const panel = <ProfilePanel profile={profile} sectionState={sectionState} />
 
   return (
     <div className="workspace">
@@ -121,11 +152,9 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
               entry.from === 'user' ? (
                 <Message key={entry.id} align="end">
                   <MessageContent>
-                    <BubbleGroup>
-                      <Bubble align="end">
-                        <BubbleContent>{entry.text}</BubbleContent>
-                      </Bubble>
-                    </BubbleGroup>
+                    <Bubble align="end">
+                      <BubbleContent>{entry.text}</BubbleContent>
+                    </Bubble>
                   </MessageContent>
                 </Message>
               ) : (
@@ -146,18 +175,13 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                         <Bubble variant="muted">
                           <BubbleContent>{entry.text}</BubbleContent>
                         </Bubble>
-                        {entry.quickReplies && !answered && (
+                        {entry.quickReplies && entry.id === lastId && !thinking && (
                           <Inline gap={2}>
-                            <Button variant="outline" size="sm" onClick={() => send('Looks right.')}>
-                              Looks right
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => send('Some of this is off, let me fix it.')}
-                            >
-                              Some of this is off
-                            </Button>
+                            {entry.quickReplies.map((reply) => (
+                              <Button key={reply} variant="outline" size="sm" onClick={() => send(reply)}>
+                                {reply}
+                              </Button>
+                            ))}
                           </Inline>
                         )}
                       </Stack>
