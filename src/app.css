@@ -445,6 +445,6 @@
   width: 2.5rem;
   height: 2.5rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg-spark);
+  border-radius: 999px;
   background: var(--background);
 }
