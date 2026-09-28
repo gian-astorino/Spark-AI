@@ -3,10 +3,7 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupText,
-  Field,
-  FieldContent,
   FieldDescription,
-  FieldLabel,
   FieldTitle,
   Input,
   RadioGroup,
@@ -112,20 +109,26 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
           <RadioGroup value={source} onValueChange={(value) => setSource(value as Source)}>
             <Stack gap={3}>
               {OPTIONS.map((option) => (
-                <FieldLabel key={option.value} htmlFor={`source-${option.value}`}>
-                  <Field orientation="horizontal" data-disabled={option.disabled}>
-                    {/* Spark's own tile: the DS has no media container for a choice card yet. */}
+                // Spark's own choice card: the field sits in the card but outside
+                // the label, so typing in it highlights the field, not the card.
+                <div
+                  key={option.value}
+                  className="choice-card"
+                  data-selected={option.value === source}
+                  data-disabled={option.disabled || undefined}
+                >
+                  <label className="choice-card-label" htmlFor={`source-${option.value}`}>
                     <span className="source-tile" aria-hidden>
                       <Icon icon={option.icon} size={20} />
                     </span>
-                    <FieldContent>
+                    <span className="choice-card-text">
                       <FieldTitle>{option.title}</FieldTitle>
                       <FieldDescription>{option.description}</FieldDescription>
-                      {detail(option.value)}
-                    </FieldContent>
+                    </span>
                     <RadioGroupItem value={option.value} id={`source-${option.value}`} disabled={option.disabled} />
-                  </Field>
-                </FieldLabel>
+                  </label>
+                  {detail(option.value)}
+                </div>
               ))}
             </Stack>
           </RadioGroup>
