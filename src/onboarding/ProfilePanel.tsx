@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   Avatar,
   AvatarFallback,
@@ -142,6 +143,14 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
               ))}
             </div>
           )}
+          {b.fonts.length > 0 && (
+            <Stack gap={2}>
+              <ItemDescription>Fonts</ItemDescription>
+              {b.fonts.map((font) => (
+                <FontSample key={font.role} role={font.role} family={font.family} />
+              ))}
+            </Stack>
+          )}
           {b.tone.length > 0 && (
             <Stack gap={2}>
               <ItemDescription>Tone of voice</ItemDescription>
@@ -192,6 +201,33 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
       )
     }
   }
+}
+
+/**
+ * The font's name written in the font itself. Loaded from Google Fonts, where
+ * most site fonts live; when it is not there the name falls back to the
+ * system font and still reads fine.
+ */
+function FontSample({ role, family }: { role: 'heading' | 'body'; family: string }) {
+  useEffect(() => {
+    const id = `font-${family.replace(/\W+/g, '-')}`
+    if (document.getElementById(id)) return
+    const link = document.createElement('link')
+    link.id = id
+    link.rel = 'stylesheet'
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}&display=swap`
+    document.head.append(link)
+  }, [family])
+
+  return (
+    <div className="font-sample">
+      {/* The family is content: the sample shows the brand's font, not ours. */}
+      <span className="font-sample-name" style={{ fontFamily: `"${family}", var(--font-sans)` }}>
+        {family}
+      </span>
+      <ItemDescription>{role === 'heading' ? 'Headings' : 'Body text'}</ItemDescription>
+    </div>
+  )
 }
 
 interface Row {

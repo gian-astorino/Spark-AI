@@ -1,5 +1,5 @@
 // The business profile Spark collects during onboarding. For now the website
-// crawl fills branding (logo, colours); everything else comes from the chat.
+// crawl fills branding (logo, colours, fonts); everything else comes from the chat.
 
 export const SECTIONS = ['business', 'location', 'branding', 'catalog', 'calendar'] as const
 export type Section = (typeof SECTIONS)[number]
@@ -20,6 +20,7 @@ export interface Profile {
   branding?: {
     logoUrl?: string
     colors: { name: string; hex: string }[]
+    fonts: { role: 'heading' | 'body'; family: string }[]
     tone: string[]
   }
   catalog?: { name: string; description: string; price: string; duration: string }[]

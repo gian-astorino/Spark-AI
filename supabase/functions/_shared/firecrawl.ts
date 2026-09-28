@@ -6,7 +6,8 @@ const API = 'https://api.firecrawl.dev/v2'
 export interface Branding {
   logo?: string
   colors?: Record<string, string>
-  fonts?: { family?: string }[]
+  fonts?: { role?: string; family?: string }[]
+  typography?: { fontFamilies?: Record<string, unknown> }
 }
 
 export interface ScrapedPage {

@@ -241,3 +241,15 @@
   border: 1px solid var(--border);
   background: var(--background);
 }
+
+.font-sample {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.font-sample-name {
+  font-size: 1.375rem;
+  line-height: 1.2;
+}

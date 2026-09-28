@@ -35,11 +35,13 @@ confirms it, and what the owner says wins.
 `POST /functions/v1/import { business_id }` with the owner's session. Answers
 `202 { job_id }` and keeps working in the background:
 
-1. Firecrawl scrapes the home page: markdown, links and branding (logo, colours).
+1. Firecrawl scrapes the home page: markdown, links and branding (logo, brand
+   colours, heading and body fonts).
 2. Up to 6 more pages are picked by their address (treatments, prices, hours,
    contacts, about) and scraped. At most 7 Firecrawl credits per import.
-3. Every page goes into `scraped_pages`. Logo and colours are written to the
-   profile straight away (the logo is copied into `logos/`).
+3. Every page goes into `scraped_pages`. Logo, the primary/secondary/accent
+   colours and the fonts are written to the profile straight away (the logo is
+   copied into `logos/`; Firecrawl's raw analysis stays in `import_jobs.raw_branding`).
 
 **No LLM yet.** Business, locations, catalog and tone of voice stay empty
 until an extraction step reads `scraped_pages`; the pages are kept precisely

@@ -25,8 +25,8 @@ export function ImportMarker({
   onSkip: () => void
 }) {
   const view = {
-    running: { icon: null, title: `Reading ${label}`, detail: 'Pages, logo and colours. This takes up to a minute.' },
-    done: { icon: CheckmarkCircle02Icon, title: `Read ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} from ${label}`, detail: 'Logo and colours saved' },
+    running: { icon: null, title: `Reading ${label}`, detail: 'Pages, logo, colours and fonts. This takes up to a minute.' },
+    done: { icon: CheckmarkCircle02Icon, title: `Read ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} from ${label}`, detail: 'Logo, colours and fonts saved' },
     failed: { icon: Alert02Icon, title: `Couldn't read ${label}`, detail: 'The site did not answer, or blocked us' },
     skipped: { icon: Cancel01Icon, title: `Import from ${label} skipped`, detail: undefined },
     idle: { icon: null, title: '', detail: undefined },

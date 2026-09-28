@@ -57,7 +57,7 @@ export function afterImport(pagesRead: number): Turn[] {
   return [
     {
       ...first,
-      ask: `Done: I read ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} of your site and put your logo and colours in the panel. Let's fill in the rest. ${first.ask}`,
+      ask: `Done: I read ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} of your site and put your logo, colours and fonts in the panel. Let's fill in the rest. ${first.ask}`,
     },
     ...rest,
   ]

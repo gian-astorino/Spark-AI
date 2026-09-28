@@ -71,7 +71,7 @@ export function useImport(request: ImportRequest) {
 
 async function loadBranding(businessId: string): Promise<Profile['branding']> {
   const [{ data: brand }, { data: colors }] = await Promise.all([
-    supabase.from('brand_profiles').select('logo_path, logo_source_url, tone_of_voice').eq('business_id', businessId).maybeSingle(),
+    supabase.from('brand_profiles').select('logo_path, logo_source_url, fonts, tone_of_voice').eq('business_id', businessId).maybeSingle(),
     supabase.from('brand_colors').select('name, hex').eq('business_id', businessId).order('position'),
   ])
   if (!brand && !colors?.length) return undefined
@@ -84,6 +84,7 @@ async function loadBranding(businessId: string): Promise<Profile['branding']> {
   return {
     logoUrl,
     colors: (colors ?? []).map((color) => ({ name: color.name ?? '', hex: color.hex })),
+    fonts: brand?.fonts ?? [],
     tone: brand?.tone_of_voice ?? [],
   }
 }
