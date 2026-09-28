@@ -111,7 +111,7 @@
 
 /* ---------- Step 2: chat + profile ---------- */
 
-/* Two rounded columns on the sidebar grey, 8px from the edges and apart. */
+/* Two rounded columns on a light grey, 8px from the edges and apart. */
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -119,7 +119,7 @@
   height: 100dvh;
   padding: 0.5rem;
   box-sizing: border-box;
-  background: var(--sidebar);
+  background: var(--muted);
 }
 
 .chat {
