@@ -144,6 +144,48 @@ export const DEFS: ToolDef[] = [
     },
   },
   {
+    name: 'view_logo',
+    description: 'Look at the logo currently in the profile, e.g. to propose brand colours that match it.',
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  {
+    name: 'set_brand_colors',
+    description: 'Replace the brand colours: Primary, Secondary and Accent. Only after the owner has agreed to them.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        colors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', enum: ['Primary', 'Secondary', 'Accent'] },
+              hex: { type: 'string', description: '#RRGGBB' },
+            },
+            required: ['name', 'hex'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['colors'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'set_fonts',
+    description:
+      'Replace the brand fonts: one for headings, one for body text, both families available on Google Fonts. Only after the owner has agreed to them.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        heading: { type: 'string', description: 'Google Fonts family for headings' },
+        body: { type: 'string', description: 'Google Fonts family for body text' },
+      },
+      required: ['heading', 'body'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'set_logo_from_url',
     description:
       "Use an image found on the web as the business logo, e.g. the profile photo (preview image) of the business's own Facebook or Instagram page.",
@@ -216,8 +258,12 @@ export interface ToolContext {
 
 type Input = Record<string, unknown>
 
-/** Runs one tool call. Returns what the model reads back as the result. */
-export async function runTool(name: string, input: Input, ctx: ToolContext): Promise<string> {
+/** Runs one tool call. Returns what the model reads back: text, or content such as an image. */
+export async function runTool(
+  name: string,
+  input: Input,
+  ctx: ToolContext,
+): Promise<string | OpenAI.Responses.ResponseFunctionCallOutputItemList> {
   const { db, businessId } = ctx
   switch (name) {
     case 'update_business': {
@@ -341,6 +387,44 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
       await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
       await check(db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, source: ctx.source }))
       return 'Logo saved.'
+    }
+
+    case 'view_logo': {
+      const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
+      if (!brand?.logo_path) return 'There is no logo in the profile.'
+      const { data } = await db.storage.from('logos').createSignedUrl(brand.logo_path, 10 * 60)
+      if (!data) return 'The logo could not be opened.'
+      return [
+        { type: 'input_text', text: 'The current logo:' },
+        { type: 'input_image', image_url: data.signedUrl, detail: 'high' },
+      ]
+    }
+
+    case 'set_brand_colors': {
+      const colors = (input.colors as { name: string; hex: string }[]).filter((color) => /^#[0-9a-f]{6}$/i.test(color.hex))
+      if (colors.length === 0) return 'Not saved: no valid #RRGGBB colour.'
+      await check(db.from('brand_colors').delete().eq('business_id', businessId))
+      await check(
+        db.from('brand_colors').insert(
+          colors.map((color, position) => ({
+            business_id: businessId,
+            name: color.name,
+            hex: color.hex.toUpperCase(),
+            position,
+            source: ctx.source,
+          })),
+        ),
+      )
+      return 'Saved.'
+    }
+
+    case 'set_fonts': {
+      const fonts = [
+        { role: 'heading', family: String(input.heading).trim() },
+        { role: 'body', family: String(input.body).trim() },
+      ]
+      await check(db.from('brand_profiles').upsert({ business_id: businessId, fonts, source: ctx.source }))
+      return 'Saved.'
     }
 
     case 'set_logo_from_url': {

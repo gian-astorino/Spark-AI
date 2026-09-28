@@ -155,7 +155,7 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
   const outputs = await Promise.all(
     calls.map(async (call) => {
       const input = JSON.parse(call.arguments)
-      let output: string
+      let output: Awaited<ReturnType<typeof runTool>>
       try {
         if (call.name === 'import_branding_from_site') {
           const url = String(input.url)
