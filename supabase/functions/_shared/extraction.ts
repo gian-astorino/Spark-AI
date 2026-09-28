@@ -1,6 +1,5 @@
-// What Firecrawl's model extracts from each page, and how the pages merge
-// into one profile. Every field is optional per page: a contacts page knows
-// the address, a price list knows the catalog.
+// What the model extracts from the crawled pages, and how extractions merge
+// into one profile (and are checked: bad hours and prices are dropped).
 
 export interface PageExtraction {
   business?: { name?: string | null; description?: string | null; sector?: string | null } | null
@@ -21,68 +20,62 @@ export interface PageExtraction {
 
 const text = (description: string) => ({ type: ['string', 'null'], description })
 const number = (description: string) => ({ type: ['number', 'null'], description })
-
-export const PAGE_SCHEMA = {
+const object = (properties: Record<string, unknown>, description?: string) => ({
   type: 'object',
-  properties: {
-    business: {
-      type: 'object',
-      properties: {
-        name: text('The business name'),
-        description: text('What the business does, one or two sentences, in the language of the site'),
-        sector: text('Short label, e.g. "Beauty & skincare", "Hair salon", "Nail salon"'),
-      },
-    },
-    locations: {
-      type: 'array',
-      description: 'Physical locations stated on this page',
-      items: {
-        type: 'object',
-        properties: {
-          name: text('Name of the location, if the business has several'),
-          address: text('Full street address as written'),
-          hours: {
-            type: 'array',
-            description: 'One entry per open interval; a lunch break means two entries for that day',
-            items: {
-              type: 'object',
-              properties: {
-                weekday: number('ISO weekday, 1 = Monday … 7 = Sunday'),
-                opens_at: text('24h time, HH:MM'),
-                closes_at: text('24h time, HH:MM'),
-              },
-            },
-          },
-        },
-      },
-    },
-    tone_of_voice: {
-      type: 'array',
-      description: 'Three to five adjectives for how the page talks to customers, written in the language of the site',
-      items: { type: 'string' },
-    },
-    catalog: {
-      type: 'array',
-      description: 'Services, treatments or products offered, as listed on this page',
-      items: {
-        type: 'object',
-        properties: {
-          name: text('Name of the treatment or service'),
-          description: text('Short description as written'),
-          category: text('Category or section it is listed under'),
-          price_eur: number('Price in euro as a number, only if stated'),
-          duration_minutes: number('Duration in minutes, only if stated'),
-        },
-      },
-    },
-  },
-}
+  ...(description ? { description } : {}),
+  properties,
+  required: Object.keys(properties),
+  additionalProperties: false,
+})
 
-export const PAGE_PROMPT = [
-  'Extract the business profile information stated on this page of a local business website.',
-  'Only use what the page says. If something is not on this page, leave it null or empty:',
-  'never guess prices, durations, hours or addresses.',
-  'Write every value, including the tone-of-voice adjectives, in the language of the site.',
+/** The whole profile from all pages at once, as a strict JSON schema. */
+export const PROFILE_SCHEMA = object({
+  business: object({
+    name: text('The business name (the salon, not the website or booking platform hosting the page)'),
+    description: text('What the business does, one or two sentences'),
+    sector: text('Short label, e.g. "Beauty & skincare", "Hair salon", "Nail salon"'),
+  }),
+  locations: {
+    type: 'array',
+    description: 'Physical locations of the business',
+    items: object({
+      name: text('Name of the location, if the business has several'),
+      address: text('Full street address as written'),
+      hours: {
+        type: 'array',
+        description: 'One entry per open interval; a lunch break means two entries for that day; closed days have none',
+        items: object({
+          weekday: number('ISO weekday, 1 = Monday … 7 = Sunday'),
+          opens_at: text('24h time, HH:MM'),
+          closes_at: text('24h time, HH:MM'),
+        }),
+      },
+    }),
+  },
+  tone_of_voice: {
+    type: 'array',
+    description: 'Three to five adjectives for how the business talks to customers',
+    items: { type: 'string' },
+  },
+  catalog: {
+    type: 'array',
+    description: 'Every service, treatment or product the business offers, once each',
+    items: object({
+      name: text('Name of the treatment or service'),
+      description: text('Short description, if given'),
+      category: text('Category or section it is listed under'),
+      price_eur: number('Current price in euro. When a discounted price is shown next to a struck-through one, the discounted price.'),
+      duration_minutes: number('Duration in minutes ("1 ora" = 60, "1 ora 30 min" = 90)'),
+    }),
+  },
+})
+
+export const EXTRACTION_INSTRUCTIONS = [
+  'You extract the profile of one local business from pages of its website or of its page on a booking platform (Treatwell, Fresha, Booksy, Google Maps…).',
+  'Only use what the pages say. When something is not stated, return null or an empty list: never guess prices, durations, hours or addresses.',
+  'Ignore everything that belongs to the platform rather than the business: its navigation, ads, other salons, reviews.',
+  'List every service with its price and duration when shown; "da € 30" next to a category is a starting price, not a service.',
+  'Write every value, including the tone-of-voice adjectives, in the language of the pages.',
 ].join(' ')
 
 // ---------------------------------------------------------------------------

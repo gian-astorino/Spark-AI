@@ -16,21 +16,22 @@
 // wall-clock limit: nothing here waits for Firecrawl.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import {
-  addressKey,
-  key,
-  mergePages,
-  PAGE_PROMPT,
-  PAGE_SCHEMA,
-  type MergedProfile,
-  type PageExtraction,
-} from '../_shared/extraction.ts'
+import { addressKey, key, mergePages, type MergedProfile } from '../_shared/extraction.ts'
 import { crawlStatus, scrape, startCrawl, type Branding } from '../_shared/firecrawl.ts'
+import { extractProfile } from '../_shared/llm.ts'
 
-// 1 credit per page crawled + 4 for its JSON extraction: at most ~125 per site,
-// ~25 per additional source.
+// 1 Firecrawl credit per page; extraction runs on our side afterwards.
 const MAX_PAGES = 25
 const EXTRA_PAGES = 5
+
+// A booking platform or directory page is the business's listing, not its
+// site: its branding is the platform's, and only that page (and what sits
+// under it) belongs to the business.
+const PLATFORMS = /(^|\.)(treatwell|fresha|booksy|uala|miogest|planity|google|goo\.gl|facebook|instagram|tripadvisor|paginegialle)\./i
+const NOT_WORTH_A_CREDIT = ['.*recensioni.*', '.*reviews.*', '.*carrello.*', '.*cart.*', '.*privacy.*', '.*cookie.*']
+
+// An extraction that has not finished in this long has died with its worker.
+const PROCESSING_TIMEOUT_MS = 4 * 60 * 1000
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -89,8 +90,9 @@ async function start(asUser: SupabaseClient, db: SupabaseClient, businessId: str
   if (!additive) await db.from('businesses').update({ onboarding_status: 'importing' }).eq('id', businessId)
 
   try {
+    const platform = PLATFORMS.test(new URL(target).hostname)
     let url = target
-    if (!additive) {
+    if (!additive && !platform) {
       // Branding comes from the business's own home page and needs no extraction.
       const home = await scrape(target, true)
       await db.from('import_jobs').update({ raw_branding: home.branding ?? null }).eq('id', job.id)
@@ -98,14 +100,14 @@ async function start(asUser: SupabaseClient, db: SupabaseClient, businessId: str
       await markDone(db, job.id, 'branding')
       url = home.url
     }
+    const narrow = additive || platform
     const crawlId = await startCrawl({
       url,
-      limit: additive ? EXTRA_PAGES : MAX_PAGES,
-      sitemap: additive ? 'skip' : 'include',
-      schema: PAGE_SCHEMA,
-      prompt: PAGE_PROMPT,
+      limit: narrow ? EXTRA_PAGES : MAX_PAGES,
+      sitemap: narrow ? 'skip' : 'include',
+      excludePaths: NOT_WORTH_A_CREDIT,
     })
-    await db.from('import_jobs').update({ firecrawl_id: crawlId }).eq('id', job.id)
+    await db.from('import_jobs').update({ firecrawl_id: crawlId, pages_total: narrow ? EXTRA_PAGES : MAX_PAGES }).eq('id', job.id)
   } catch (failure) {
     await fail(db, job.id, failure)
   }
@@ -115,13 +117,22 @@ async function start(asUser: SupabaseClient, db: SupabaseClient, businessId: str
 async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) {
   const { data: job } = await asUser
     .from('import_jobs')
-    .select('id, business_id, status, firecrawl_id, pages_read, pages_total, additive')
+    .select('id, business_id, status, firecrawl_id, pages_read, pages_total, additive, processing_started_at')
     .eq('id', jobId)
     .maybeSingle()
   if (!job) return json({ error: 'Job not found' }, 404)
   if (job.status !== 'running' || !job.firecrawl_id) return json(progress(job), 200)
 
-  const crawl = await crawlStatus<PageExtraction>(job.firecrawl_id)
+  // Already being extracted by an earlier check: wait, unless it died.
+  if (job.processing_started_at) {
+    if (Date.now() - new Date(job.processing_started_at).getTime() > PROCESSING_TIMEOUT_MS) {
+      await fail(db, job.id, 'Extraction did not finish in time')
+      return json({ ...progress(job), status: 'failed' }, 200)
+    }
+    return json(progress(job), 200)
+  }
+
+  const crawl = await crawlStatus(job.firecrawl_id)
   if (crawl.status === 'failed') {
     await fail(db, job.id, 'Firecrawl crawl failed')
     return json({ ...progress(job), status: 'failed' }, 200)
@@ -132,32 +143,42 @@ async function check(asUser: SupabaseClient, db: SupabaseClient, jobId: string) 
     return json({ ...progress(job), ...update }, 200)
   }
 
-  // Completed. Only the check that claims the job processes it.
+  // Completed. Only the check that claims the job extracts it, in the
+  // background: the model can take longer than one request should.
   const { data: claimed } = await db
     .from('import_jobs')
-    .update({ processing_started_at: new Date().toISOString() })
+    .update({ processing_started_at: new Date().toISOString(), pages_read: crawl.completed })
     .eq('id', job.id)
     .is('processing_started_at', null)
     .select('id')
-  if (!claimed?.length) return json(progress(job), 200)
+  if (claimed?.length) EdgeRuntime.waitUntil(extractAndSave(db, job))
+  return json({ ...progress(job), pages_read: crawl.completed }, 200)
+}
 
+async function extractAndSave(
+  db: SupabaseClient,
+  job: { id: string; business_id: string; firecrawl_id: string; additive: boolean },
+) {
   try {
-    const finished = await crawlStatus<PageExtraction>(job.firecrawl_id, true)
-    // The home page first: on a tie its answer wins.
-    const pages = [...finished.pages].sort((a, b) => a.url.length - b.url.length)
+    const finished = await crawlStatus(job.firecrawl_id, true)
+    // The shortest URL first: usually the home or the listing itself.
+    const pages = [...finished.pages].filter((page) => page.markdown).sort((a, b) => a.url.length - b.url.length)
     await db.from('scraped_pages').insert(
       pages.map((page) => ({ job_id: job.id, url: page.url, title: page.title, markdown: page.markdown })),
     )
-    const profile = mergePages(pages.map((page) => page.json ?? {}))
+    const extraction = await extractProfile(pages)
+    await db.from('import_jobs').update({ raw_extraction: extraction }).eq('id', job.id)
+    // mergePages validates what the model returned: bad hours and prices go.
+    const profile = mergePages([extraction])
     await (job.additive ? addToProfile : saveProfile)(db, job.business_id, job.id, profile)
 
-    const done = { status: 'done', pages_read: pages.length, pages_total: pages.length, finished_at: new Date().toISOString() }
-    await db.from('import_jobs').update(done).eq('id', job.id)
+    await db
+      .from('import_jobs')
+      .update({ status: 'done', pages_read: pages.length, pages_total: pages.length, finished_at: new Date().toISOString() })
+      .eq('id', job.id)
     if (!job.additive) await db.from('businesses').update({ onboarding_status: 'chatting' }).eq('id', job.business_id)
-    return json({ ...progress(job), ...done }, 200)
   } catch (failure) {
     await fail(db, job.id, failure)
-    return json({ ...progress(job), status: 'failed' }, 200)
   }
 }
 

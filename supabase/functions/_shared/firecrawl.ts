@@ -45,14 +45,14 @@ export async function scrape(url: string, withBranding = false): Promise<Scraped
   }
 }
 
-/** Starts a crawl that extracts `schema` from every page. Returns the crawl id. */
+/** Starts a crawl that returns every page's markdown. Returns the crawl id. */
 export async function startCrawl(options: {
   url: string
   limit: number
-  schema: Record<string, unknown>
-  prompt: string
   /** 'skip' keeps a crawl of one page of a big site (Treatwell, Fresha) under that page. */
   sitemap?: 'include' | 'skip'
+  /** Path regexes not worth a credit (reviews, carts…). */
+  excludePaths?: string[]
 }): Promise<string> {
   const body = await call('/crawl', {
     method: 'POST',
@@ -60,8 +60,9 @@ export async function startCrawl(options: {
       url: options.url,
       limit: options.limit,
       sitemap: options.sitemap ?? 'include',
+      excludePaths: options.excludePaths ?? [],
       scrapeOptions: {
-        formats: ['markdown', { type: 'json', schema: options.schema, prompt: options.prompt }],
+        formats: ['markdown'],
         // Hours and addresses usually live in the footer: keep the whole page.
         onlyMainContent: false,
       },
@@ -70,27 +71,26 @@ export async function startCrawl(options: {
   return body.id
 }
 
-export interface CrawledPage<T> {
+export interface CrawledPage {
   url: string
   title?: string
   markdown: string
-  json?: T
 }
 
-export interface CrawlStatus<T> {
+export interface CrawlStatus {
   status: 'scraping' | 'completed' | 'failed'
   total: number
   completed: number
-  pages: CrawledPage<T>[]
+  pages: CrawledPage[]
 }
 
 /**
  * The crawl's state. With `withPages`, also every page, following `next`
  * (Firecrawl pages its results in 10 MB chunks).
  */
-export async function crawlStatus<T>(id: string, withPages = false): Promise<CrawlStatus<T>> {
+export async function crawlStatus(id: string, withPages = false): Promise<CrawlStatus> {
   let body = await call(`/crawl/${id}`)
-  const status: CrawlStatus<T> = { status: body.status, total: body.total ?? 0, completed: body.completed ?? 0, pages: [] }
+  const status: CrawlStatus = { status: body.status, total: body.total ?? 0, completed: body.completed ?? 0, pages: [] }
   if (!withPages) return status
 
   for (;;) {
@@ -100,7 +100,6 @@ export async function crawlStatus<T>(id: string, withPages = false): Promise<Cra
         url: item.metadata?.sourceURL ?? '',
         title: Array.isArray(title) ? title[0] : title,
         markdown: item.markdown ?? '',
-        json: item.json,
       })
     }
     if (!body.next) return status
