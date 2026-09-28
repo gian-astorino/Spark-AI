@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isPlatform, saveBranding } from './branding.ts'
 import { previewImage, scrape, searchImages } from './firecrawl.ts'
+import { readPlatform } from './platforms.ts'
 import { asFunctionTool, DEFS, runTool, type ToolContext } from './profile-tools.ts'
 
 // The import as research: gpt-5.5 starts from a link, searches the web for
@@ -204,19 +205,8 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
             reads++
             activity = `Reading ${String(input.url).replace(/^https?:\/\/(www\.)?/, '')}`
             const url = String(input.url)
-            try {
-              const page = await scrape(url)
-              const image = page.image ?? (await previewImage(url))
-              output =
-                `<page url="${page.url}" title="${page.title ?? ''}"${image ? ` preview_image="${image}"` : ''}>\n` +
-                `${page.markdown.slice(0, PAGE_CHARS)}\n</page>`
-            } catch (failure) {
-              // Behind a login wall the content is gone, but the preview often is not.
-              const image = await previewImage(url)
-              output = image
-                ? `The page content could not be read (${String(failure)}), but its preview image is: ${image}`
-                : `The page could not be read: ${String(failure)}`
-            }
+            // Fresha and Treatwell: their complete listing, straight from the page's data.
+            output = (await readPlatform(url)) ?? (await readPage(url))
           }
         } else {
           output = await runTool(call.name, input, ctx)
@@ -238,6 +228,23 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
     background: true,
   })
   return { state: 'running', responseId: next.id, reads, activity: activity ?? 'Saving what it found' }
+}
+
+/** Any other page, through Firecrawl. Behind a login wall, its preview image at least. */
+async function readPage(url: string): Promise<string> {
+  try {
+    const page = await scrape(url)
+    const image = page.image ?? (await previewImage(url))
+    return (
+      `<page url="${page.url}" title="${page.title ?? ''}"${image ? ` preview_image="${image}"` : ''}>\n` +
+      `${page.markdown.slice(0, PAGE_CHARS)}\n</page>`
+    )
+  } catch (failure) {
+    const image = await previewImage(url)
+    return image
+      ? `The page content could not be read (${String(failure)}), but its preview image is: ${image}`
+      : `The page could not be read: ${String(failure)}`
+  }
 }
 
 /** "Searching …" when the latest thing the model did was a web search. */
