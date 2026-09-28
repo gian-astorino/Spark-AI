@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { PREVIEW_CRAWLER, searchImages } from './firecrawl.ts'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Every logo that enters the profile is made square and high resolution, and
@@ -62,7 +63,16 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
 
     // 2. The square, high-resolution logo, identical to the original.
     try {
-      const logoPath = isSvg ? await squareSvgLogo(db, businessId, await file.text()) : await redraw(db, businessId, file, extension)
+      let source: Blob = file
+      if (!isSvg) {
+        // A small logo is often a thumbnail of one published larger elsewhere.
+        const sharper = await sharperLogo(db, businessId, new Uint8Array(await file.arrayBuffer())).catch((failure) => {
+          failures.push(`search: ${String(failure)}`)
+          return null
+        })
+        if (sharper) source = sharper
+      }
+      const logoPath = isSvg ? await squareSvgLogo(db, businessId, await file.text()) : await redraw(db, businessId, source, extension)
       await db.from('brand_profiles').update({ logo_path: logoPath }).eq('business_id', businessId)
     } catch (failure) {
       failures.push(`redraw: ${String(failure)}`)
@@ -104,6 +114,167 @@ async function redraw(db: SupabaseClient, businessId: string, file: Blob, _exten
   const path = `${businessId}/logo-hd.png`
   await db.storage.from('logos').upload(path, png, { contentType: 'image/png', upsert: true })
   return path
+}
+
+/** Below this many pixels on its short side, a logo is worth a search for a larger copy. */
+const SHARP_ENOUGH = 600
+const CANDIDATES = 5
+const CANDIDATE_BYTES = 5_000_000
+
+/**
+ * Looks for the same logo at a higher resolution: first the original behind a
+ * thumbnail's address, then an image search where the vision model picks a
+ * result only if it is exactly the same logo. Returns the larger image, or
+ * null to keep the one we have.
+ */
+async function sharperLogo(db: SupabaseClient, businessId: string, bytes: Uint8Array): Promise<Blob | null> {
+  const current = await decodeImage(bytes).catch(() => null)
+  const shortSide = current ? Math.min(current.width, current.height) : 0
+  if (current && shortSide >= SHARP_ENOUGH) return null
+
+  // 1. Free and certain: the address of a thumbnail often leads to its original.
+  const { data: brand } = await db.from('brand_profiles').select('logo_source_url').eq('business_id', businessId).single()
+  const original = brand?.logo_source_url ? await fullSize(brand.logo_source_url, shortSide) : null
+  if (original) {
+    await db.storage.from('logos').upload(`${businessId}/source-hd.${original.extension}`, original.data, {
+      contentType: original.type,
+      upsert: true,
+    })
+    await db.from('brand_profiles').update({ logo_source_url: original.url }).eq('business_id', businessId)
+    return new Blob([original.data], { type: original.type })
+  }
+
+  // 2. An image search, checked by eye.
+  const [{ data: business }, { data: location }] = await Promise.all([
+    db.from('businesses').select('name, website_url').eq('id', businessId).single(),
+    db.from('locations').select('address').eq('business_id', businessId).order('position').limit(1).maybeSingle(),
+  ])
+  if (!business?.name) return null
+  // "Via Castel Cellesi, 6, 51100 Pistoia PT" → "Pistoia"
+  const town = location?.address.match(/\b\d{5}\s+([A-Za-zÀ-ÿ' ]+?)(?:\s+\(?[A-Z]{2}\)?)?\s*$/)?.[1] ?? ''
+  const results = await searchImages(`${business.name} ${town} logo`.replace(/\s+/g, ' ').trim(), 10)
+  const minimum = Math.max(shortSide * 1.5, 400)
+  // Sizes are often missing from search results: those are measured once downloaded.
+  const bigger = results
+    .filter((result) => !result.width || !result.height || Math.min(result.width, result.height) > minimum)
+    .slice(0, CANDIDATES + 3)
+
+  const downloads = await Promise.all(
+    bigger.map(async (result) => {
+      const data = await downloadImage(result.imageUrl)
+      if (!data) return null
+      const size = await decodeImage(data.bytes).catch(() => null)
+      return size && Math.min(size.width, size.height) > minimum ? { result, type: data.type, data: data.bytes } : null
+    }),
+  )
+  const candidates = downloads.filter((entry) => entry !== null).slice(0, CANDIDATES)
+  if (candidates.length === 0) return null
+
+  const content: OpenAI.Responses.ResponseInputContent[] = [
+    {
+      type: 'input_text',
+      text: 'This is the business logo we have, at low resolution:',
+    },
+    { type: 'input_image', image_url: dataUrl(bytes[0] === 0xff ? 'image/jpeg' : 'image/png', bytes), detail: 'low' },
+    {
+      type: 'input_text',
+      text: 'Which of the following images shows the same logo (same design, same lettering, same colours), only larger? It may sit on a different background or be cropped to a square or a circle, as on a Facebook or Instagram profile photo. A redesign, a variant, or another business with a similar name does not count. Answer with its number, or null if none qualifies.',
+    },
+  ]
+  candidates.forEach((candidate, index) => {
+    content.push({ type: 'input_text', text: `Image ${index + 1}` })
+    content.push({ type: 'input_image', image_url: dataUrl(candidate.type, candidate.data), detail: 'low' })
+  })
+  const response = await openai.responses.create({
+    model: VISION_MODEL,
+    reasoning: { effort: 'low' },
+    input: [{ role: 'user', content }],
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'logo_match',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: { match: { type: ['integer', 'null'] } },
+          required: ['match'],
+          additionalProperties: false,
+        },
+      },
+    },
+  })
+  const { match } = JSON.parse(response.output_text || '{"match":null}') as { match: number | null }
+  const chosen = match ? candidates[match - 1] : undefined
+  if (!chosen) return null
+
+  const extension = chosen.type === 'image/png' ? 'png' : 'jpg'
+  await db.storage.from('logos').upload(`${businessId}/source-hd.${extension}`, chosen.data, { contentType: chosen.type, upsert: true })
+  await db.from('brand_profiles').update({ logo_source_url: chosen.result.imageUrl }).eq('business_id', businessId)
+  return new Blob([chosen.data as Uint8Array<ArrayBuffer>], { type: chosen.type })
+}
+
+/**
+ * The same image without the size a CMS put in its address: WordPress thumbnails
+ * ("logo-180x180.png" → "logo.png") and resize parameters ("?w=180"). Only the
+ * size is removed, so it is the same image; kept only if it really is larger.
+ */
+async function fullSize(url: string, shortSide: number) {
+  const candidates = new Set<string>()
+  const wordpress = url.replace(/-\d{2,4}x\d{2,4}(\.(png|jpe?g|webp))(\?.*)?$/i, '$1')
+  if (wordpress !== url) candidates.add(wordpress)
+  try {
+    const parsed = new URL(url)
+    const sized = ['w', 'h', 'width', 'height', 'resize', 'size', 'fit']
+    if (sized.some((name) => parsed.searchParams.has(name))) {
+      for (const name of sized) parsed.searchParams.delete(name)
+      candidates.add(parsed.toString())
+    }
+  } catch {
+    return null
+  }
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, { signal: AbortSignal.timeout(10_000) })
+      const type = (response.headers.get('content-type') ?? '').split(';')[0]
+      if (!response.ok || !/^image\/(png|jpe?g)$/.test(type)) continue
+      const data = new Uint8Array(await response.arrayBuffer())
+      if (data.byteLength > CANDIDATE_BYTES) continue
+      const image = await decodeImage(data)
+      if (Math.min(image.width, image.height) > shortSide) {
+        return { url: candidate, type, data, extension: type === 'image/png' ? 'png' : 'jpg' }
+      }
+    } catch {
+      // Not there, not an image, or not decodable: try the next one.
+    }
+  }
+  return null
+}
+
+/**
+ * An image from the web we can square afterwards (PNG or JPEG). Facebook and
+ * Instagram serve their images only to link-preview crawlers, so that is tried
+ * when a plain request is refused.
+ */
+async function downloadImage(url: string): Promise<{ bytes: Uint8Array; type: string } | null> {
+  const attempts: Record<string, string>[] = [{}, { 'User-Agent': PREVIEW_CRAWLER }]
+  for (const headers of attempts) {
+    try {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) })
+      const type = (response.headers.get('content-type') ?? '').split(';')[0]
+      if (!response.ok || !/^image\/(png|jpe?g)$/.test(type)) continue
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      if (bytes.byteLength <= CANDIDATE_BYTES) return { bytes, type }
+    } catch {
+      // Try the next way, or give up on this one.
+    }
+  }
+  return null
+}
+
+function dataUrl(type: string, data: Uint8Array) {
+  let binary = ''
+  for (let i = 0; i < data.length; i += 0x8000) binary += String.fromCharCode(...data.subarray(i, i + 0x8000))
+  return `data:${type};base64,${btoa(binary)}`
 }
 
 /** Catmull-Rom weights: sharp enough for logos, without visible ringing. */
