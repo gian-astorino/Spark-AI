@@ -9,6 +9,10 @@ export interface ImportProgress {
   status: ImportStatus
   pagesRead: number
   pagesTotal: number
+  /** What the research is doing right now, e.g. 'Searching "…"'. */
+  activity?: string
+  /** Once done: the sources used and what is still missing. */
+  summary?: string
 }
 
 export async function createBusiness(websiteUrl?: string): Promise<string> {
@@ -39,6 +43,8 @@ export async function checkImport(jobId: string): Promise<ImportProgress> {
     status: data.status === 'done' ? 'done' : data.status === 'failed' ? 'failed' : 'running',
     pagesRead: data.pages_read ?? 0,
     pagesTotal: data.pages_total ?? 0,
+    activity: data.activity ?? undefined,
+    summary: data.summary ?? undefined,
   }
 }
 

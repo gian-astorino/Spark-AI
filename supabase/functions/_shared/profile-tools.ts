@@ -1,9 +1,10 @@
 import type OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { addressKey, key } from '../_shared/extraction.ts'
+import { addressKey, key } from './matching.ts'
 
-// The agent's hands: every tool writes one part of the profile, marked
-// source = 'chat'. Strict schemas, so inputs always match what is declared.
+// The hands of both models, the chat agent and the import research: every
+// tool writes one part of the profile, marked with the caller's source.
+// Strict schemas, so inputs always match what is declared.
 
 const nullable = (type: string, description: string) => ({ type: [type, 'null'], description })
 
@@ -22,13 +23,13 @@ const HOURS = {
   },
 }
 
-interface ToolDef {
+export interface ToolDef {
   name: string
   description: string
   input_schema: Record<string, unknown>
 }
 
-const DEFS: ToolDef[] = [
+export const DEFS: ToolDef[] = [
   {
     name: 'update_business',
     description: 'Set the business name, description or sector. Pass null for anything that should stay as it is.',
@@ -150,6 +151,14 @@ const DEFS: ToolDef[] = [
 ]
 
 /** As OpenAI function tools, in strict mode: inputs always match the schema. */
+export const asFunctionTool = (tool: ToolDef): OpenAI.Responses.FunctionTool => ({
+  type: 'function',
+  name: tool.name,
+  description: tool.description,
+  parameters: tool.input_schema,
+  strict: true,
+})
+
 export const TOOLS: OpenAI.Responses.FunctionTool[] = DEFS.map((tool) => ({
   type: 'function',
   name: tool.name,
@@ -163,6 +172,8 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 export interface ToolContext {
   db: SupabaseClient
   businessId: string
+  /** 'chat' for what the owner said, 'import' for what research found. */
+  source: 'chat' | 'import'
   /** Filled by offer_choices, read by the caller after the turn. */
   choices: string[]
 }
@@ -195,7 +206,7 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
         const { data } = await check(
           db
             .from('locations')
-            .insert({ business_id: businessId, address, name: input.name ?? null, position: known?.length ?? 0, source: 'chat' })
+            .insert({ business_id: businessId, address, name: input.name ?? null, position: known?.length ?? 0, source: ctx.source })
             .select('id')
             .single(),
         )
@@ -238,7 +249,7 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
               name: item.name,
               ...fields,
               position: byName.size + added,
-              source: 'chat',
+              source: ctx.source,
             }),
           )
           added++
@@ -261,7 +272,7 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
       if (members.length > 0) {
         await check(
           db.from('team_members').insert(
-            members.map((display_name, position) => ({ business_id: businessId, display_name, position, source: 'chat' })),
+            members.map((display_name, position) => ({ business_id: businessId, display_name, position, source: ctx.source })),
           ),
         )
       }
@@ -274,14 +285,14 @@ export async function runTool(name: string, input: Input, ctx: ToolContext): Pro
           business_id: businessId,
           provider: input.provider,
           provider_label: input.label ?? null,
-          source: 'chat',
+          source: ctx.source,
         }),
       )
       return 'Saved.'
 
     case 'set_tone_of_voice':
       await check(
-        db.from('brand_profiles').upsert({ business_id: businessId, tone_of_voice: input.adjectives, source: 'chat' }),
+        db.from('brand_profiles').upsert({ business_id: businessId, tone_of_voice: input.adjectives, source: ctx.source }),
       )
       return 'Saved.'
 

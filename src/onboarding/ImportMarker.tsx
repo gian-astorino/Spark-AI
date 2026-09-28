@@ -21,12 +21,15 @@ export function ImportMarker({
   status,
   pagesRead,
   pagesTotal,
+  activity,
   onSkip,
 }: {
   label: string
   status: MarkerStatus
   pagesRead: number
   pagesTotal: number
+  /** What the research is doing right now. */
+  activity?: string
   onSkip: () => void
 }) {
   if (status === 'starting' || status === 'running') {
@@ -39,10 +42,10 @@ export function ImportMarker({
         <ItemContent>
           <Stack gap={2}>
             <Stack gap={1}>
-              <ItemTitle>Reading {label}</ItemTitle>
+              <ItemTitle>Researching {label}</ItemTitle>
+              <ItemDescription>{activity ?? 'Opening the link'}…</ItemDescription>
               <ItemDescription>
-                {counted ? `${pagesRead} of ${pagesTotal} pages` : 'Opening the site…'} · this can take a couple of
-                minutes
+                {pagesRead} {pagesRead === 1 ? 'page' : 'pages'} read · this can take a few minutes
               </ItemDescription>
             </Stack>
             <Progress value={counted ? (pagesRead / pagesTotal) * 100 : 0} />
@@ -58,9 +61,9 @@ export function ImportMarker({
   }
 
   const view = {
-    done: { icon: CheckmarkCircle02Icon, title: `Read ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} from ${label}` },
-    failed: { icon: Alert02Icon, title: `Couldn't read ${label}` },
-    skipped: { icon: Cancel01Icon, title: `Stopped reading ${label}` },
+    done: { icon: CheckmarkCircle02Icon, title: `Researched ${label}: ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} read` },
+    failed: { icon: Alert02Icon, title: `Couldn't research ${label}` },
+    skipped: { icon: Cancel01Icon, title: `Stopped researching ${label}` },
   }[status]
 
   return (

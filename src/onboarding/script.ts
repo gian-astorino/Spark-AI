@@ -5,12 +5,12 @@ export const WAITING = "Hi, I'm Spark. Give me a moment while I read your websit
 
 export const EVENTS = {
   noWebsite: "The owner has no website. Greet them and start collecting the profile by chat.",
-  siteDone: (pages: number) =>
-    `The website import finished: ${pages} pages read, results are in the profile. Tell the owner briefly what you found, then ask for the most important thing still missing.`,
+  siteDone: (summary: string) =>
+    `The research on the business finished; results are in the profile. Its notes: ${summary} Tell the owner briefly what you found and where, then ask for the most important thing still missing.`,
   siteFailed: "The website could not be read. Tell the owner, and start collecting the profile by chat.",
   siteSkipped: 'The owner skipped the website import. Start collecting the profile by chat.',
-  extraDone: (url: string) =>
-    `The owner pasted ${url} and the app read it; anything new is now in the profile. Tell them what it added, then continue.`,
+  extraDone: (url: string, summary: string) =>
+    `The owner pasted ${url} and the research on it finished; anything new is in the profile. Its notes: ${summary} Tell them what it added, then continue.`,
   extraFailed: (url: string) => `The owner pasted ${url} but it could not be read. Tell them, and continue.`,
 }
 

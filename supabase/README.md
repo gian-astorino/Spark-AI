@@ -8,8 +8,7 @@ own business.
 ```
 browser ──► supabase-js (anon key, RLS) ──► Postgres ◄── Realtime ──► panel
    │
-   └──► Edge Function `import`  ──► scraper ──► scraped_pages
-   │                                   └──► (later) LLM: markdown → profile JSON ──► profile tables
+   └──► Edge Function `import`  ──► OpenAI research: web search + Firecrawl pages ──► profile tables
    └──► Edge Function `agent`   ──► OpenAI (gpt-5.5) with tools (update_business, set_opening_hours,
                                     add_catalog_item, set_team, set_calendar, …) ──► profile tables
 ```
@@ -30,24 +29,29 @@ confirms it, and what the owner says wins.
 | Import | `import_jobs`, `scraped_pages` (kept to re-run extraction) |
 | Chat | `conversations`, `messages` (append-only, model content blocks verbatim) |
 
-## Import (`functions/import`)
+## Import (`functions/import`): research on OpenAI
 
-A Firecrawl crawl with JSON extraction on every page (Firecrawl's own model:
-no LLM key of ours). Split in two calls because a crawl can outlast an Edge
-Function's wall-clock limit:
+The import is a research run, not a fixed crawl. `gpt-5.5` starts from the
+link, reads it, **searches the web** for other sources about the same business
+(its site, Treatwell/Fresha/Booksy pages, Google Maps listing, socials), reads
+the promising ones through Firecrawl and saves what it finds with the same
+profile tools the chat agent uses (`source = 'import'`). It checks a source is
+the same business (name and city) before using it, and never guesses.
 
-- `{ business_id }` starts the business's own site: reads the home page's
-  branding (logo, brand colours, heading/body fonts) straight away, then
-  crawls up to 25 pages. About 5 credits a page, ~125 for a full site.
-- `{ business_id, url }` starts an **extra source** pasted in the chat
-  (Treatwell, Fresha, Google Maps, a price list): up to 5 pages under that
-  URL, no branding, and it only **adds** to the profile.
-- `{ job_id }` checks progress. The client calls it every few seconds; once
-  the crawl is done it merges the pages into one profile and writes it.
+- `{ business_id }` researches from the business's link. For its own site,
+  branding (logo, brand colours, fonts) is read from the home page first;
+  for a booking platform or directory link it is skipped (it would be the
+  platform's).
+- `{ business_id, url }` researches from a link pasted in the chat, to fill
+  gaps in the existing profile.
+- `{ job_id }` advances the run by one step. It runs as OpenAI **background**
+  responses: each check retrieves the current one and, when it asks for tools,
+  runs them (pages in parallel) and starts the next. The client calls this
+  every few seconds; `import_jobs.activity` says what it is doing for the
+  marker, `summary` holds its closing notes.
 
-Pages are kept in `scraped_pages`. A first import replaces only rows it wrote
-itself (`source = 'import'`); what the owner said in the chat is never
-overwritten.
+Budget: at most 12 pages read (1 Firecrawl credit each) and 16 model turns
+per run, plus OpenAI tokens and web searches.
 
 ## Agent (`functions/agent`)
 

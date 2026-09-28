@@ -43,6 +43,7 @@ interface Job {
   status: MarkerStatus
   pagesRead: number
   pagesTotal: number
+  activity?: string
 }
 
 const POLL_MS = 3000
@@ -101,10 +102,10 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     setJobs((current) => ({ ...current, [job]: { label, primary, status: 'starting', pagesRead: 0, pagesTotal: 0 } }))
     setEntries((current) => [...current, { id: nextId++, from: 'import', job }])
 
-    const settle = async (status: 'done' | 'failed', pagesRead: number) => {
+    const settle = async (status: 'done' | 'failed', summary = '') => {
       await refreshProfile()
-      if (primary) await agentTurn({ event: status === 'done' ? EVENTS.siteDone(pagesRead) : EVENTS.siteFailed })
-      else await agentTurn({ event: status === 'done' ? EVENTS.extraDone(url) : EVENTS.extraFailed(url) })
+      if (primary) await agentTurn({ event: status === 'done' ? EVENTS.siteDone(summary) : EVENTS.siteFailed })
+      else await agentTurn({ event: status === 'done' ? EVENTS.extraDone(url, summary) : EVENTS.extraFailed(url) })
     }
 
     try {
@@ -124,14 +125,19 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
         await new Promise((resolve) => setTimeout(resolve, POLL_MS))
         if (stopped.current.has(job)) return
         const progress = await checkImport(job)
-        update({ status: progress.status, pagesRead: progress.pagesRead, pagesTotal: progress.pagesTotal })
-        if (progress.status !== 'running') return settle(progress.status, progress.pagesRead)
+        update({
+          status: progress.status,
+          pagesRead: progress.pagesRead,
+          pagesTotal: progress.pagesTotal,
+          activity: progress.activity,
+        })
+        if (progress.status !== 'running') return settle(progress.status, progress.summary)
       }
     } catch (error) {
       console.error(error)
       if (stopped.current.has(job)) return
       update({ status: 'failed' })
-      return settle('failed', 0)
+      return settle('failed')
     }
   }
 
