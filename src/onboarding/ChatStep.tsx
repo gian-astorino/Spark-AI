@@ -25,8 +25,8 @@ import { ArrowLeft02Icon, ArrowUp02Icon, SidebarRightIcon } from '@hugeicons/cor
 import { Icon } from './Icon.tsx'
 import { ImportMarker } from './ImportMarker.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
-import { IMPORTABLE, MOCK_IMPORT, hasSection, mergeProfile, type Profile, type Section } from './profile.ts'
-import { AFTER_IMPORT, AFTER_SCRIPT, FROM_CHAT, NO_WEBSITE, WAITING, type Turn } from './script.ts'
+import { IMPORTABLE, hasSection, mergeProfile, type Profile, type Section } from './profile.ts'
+import { AFTER_SCRIPT, FROM_CHAT, IMPORT_FAILED, NO_WEBSITE, WAITING, afterImport, type Turn } from './script.ts'
 import { SparkMark } from './SparkMark.tsx'
 import { displayUrl, type ImportRequest } from './types.ts'
 import { useImport } from './useImport.ts'
@@ -59,29 +59,30 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const [thinking, setThinking] = useState(false)
   const end = useRef<HTMLDivElement>(null)
 
-  // Once the import settles, either way, the agent takes over.
+  // Once the import settles, whichever way, the agent takes over.
   useEffect(() => {
-    if (importing.status !== 'done' && importing.status !== 'skipped') return
-    const next = importing.status === 'done' ? AFTER_IMPORT : FROM_CHAT
+    const { status, pagesRead } = importing
+    if (status === 'idle' || status === 'running') return
+    const next = status === 'done' ? afterImport(pagesRead) : FROM_CHAT
     setScript(next)
     setTurn(0)
-    setEntries((current) => [...current, agent(next[0])])
+    setEntries((current) => [
+      ...current,
+      ...(status === 'failed' ? [{ id: nextId++, from: 'agent' as const, text: IMPORT_FAILED }] : []),
+      agent(next[0]),
+    ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per settled status
   }, [importing.status])
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [entries, thinking])
 
-  // What the import has delivered so far, overlaid by what the chat has told us.
-  const profile = useMemo(() => {
-    let imported: Profile = {}
-    if (importing.status !== 'skipped') {
-      for (const section of IMPORTABLE.slice(0, importing.ready)) {
-        imported = { ...imported, [section]: MOCK_IMPORT[section as keyof typeof MOCK_IMPORT] }
-      }
-    }
-    return mergeProfile(imported, answers)
-  }, [importing.status, importing.ready, answers])
+  // What the crawl delivered, overlaid by what the chat has told us.
+  const profile = useMemo(
+    () => mergeProfile(importing.branding ? { branding: importing.branding } : {}, answers),
+    [importing.branding, answers],
+  )
 
   const sectionState = (section: Section): SectionState => {
     if (hasSection(profile, section)) return 'ready'
@@ -167,7 +168,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                       <ImportMarker
                         label={label}
                         status={importing.status}
-                        ready={importing.ready}
+                        pagesRead={importing.pagesRead}
                         onSkip={importing.skip}
                       />
                     ) : (

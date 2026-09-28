@@ -101,6 +101,7 @@ async function runImport(db: SupabaseClient, businessId: string, jobId: string, 
   await db.from('scraped_pages').insert(
     pages.map((page) => ({ job_id: jobId, url: page.url, title: page.title, markdown: page.markdown })),
   )
+  await db.from('import_jobs').update({ pages_read: pages.length }).eq('id', jobId)
 
   // 3. Branding needs no extraction: Firecrawl already returns it structured.
   await saveBranding(db, businessId, home.branding)

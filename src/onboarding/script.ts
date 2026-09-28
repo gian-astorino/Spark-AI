@@ -31,14 +31,6 @@ const CALENDAR: Turn[] = [
   { ask: "Thanks, that's everything I need to get started. You can keep adding context here any time." },
 ]
 
-export const AFTER_IMPORT: Turn[] = [
-  {
-    ask: "Done. Everything I found is in the panel on the right. Did I get it right? Correct anything that's off, or add what I missed.",
-    quickReplies: ['Looks right', 'Some of this is off'],
-  },
-  ...CALENDAR,
-]
-
 export const FROM_CHAT: Turn[] = [
   {
     ask: "What's your business called, and what do you do?",
@@ -58,5 +50,19 @@ export const FROM_CHAT: Turn[] = [
   },
   ...CALENDAR,
 ]
+
+/** After the crawl: the site gave us branding, the chat does the rest. */
+export function afterImport(pagesRead: number): Turn[] {
+  const [first, ...rest] = FROM_CHAT
+  return [
+    {
+      ...first,
+      ask: `Done: I read ${pagesRead} ${pagesRead === 1 ? 'page' : 'pages'} of your site and put your logo and colours in the panel. Let's fill in the rest. ${first.ask}`,
+    },
+    ...rest,
+  ]
+}
+
+export const IMPORT_FAILED = "I couldn't read your site, so let's do it by chat."
 
 export const AFTER_SCRIPT = 'Noted, I have added that to your profile.'

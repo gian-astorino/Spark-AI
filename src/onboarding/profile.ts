@@ -1,10 +1,10 @@
-// The business profile Spark collects during onboarding. Import fills the
-// first four sections; the calendar only comes from the conversation.
+// The business profile Spark collects during onboarding. For now the website
+// crawl fills branding (logo, colours); everything else comes from the chat.
 
 export const SECTIONS = ['business', 'location', 'branding', 'catalog', 'calendar'] as const
 export type Section = (typeof SECTIONS)[number]
 
-export const IMPORTABLE: readonly Section[] = ['business', 'location', 'branding', 'catalog']
+export const IMPORTABLE: readonly Section[] = ['branding']
 
 export const SECTION_TITLES: Record<Section, string> = {
   business: 'Business',
@@ -18,7 +18,7 @@ export interface Profile {
   business?: { name?: string; description?: string; sector?: string }
   location?: { address: string; hours?: { days: string; time: string }[] }
   branding?: {
-    logo: { initials: string; background: string; foreground: string }
+    logoUrl?: string
     colors: { name: string; hex: string }[]
     tone: string[]
   }
@@ -26,51 +26,10 @@ export interface Profile {
   calendar?: { members?: string[]; tool?: string }
 }
 
-// Mock only: what the scraping would return.
-export const MOCK_IMPORT: Required<Pick<Profile, 'business' | 'location' | 'branding' | 'catalog'>> = {
-  business: {
-    name: 'Studio Bellezza',
-    description: 'Independent skincare studio focused on facial treatments and personalised routines.',
-    sector: 'Beauty & skincare',
-  },
-  location: {
-    address: 'Via Tortona 12, 20144 Milano',
-    hours: [
-      { days: 'Mon – Fri', time: '09:00 – 19:00' },
-      { days: 'Sat', time: '09:00 – 14:00' },
-      { days: 'Sun', time: 'Closed' },
-    ],
-  },
-  branding: {
-    logo: { initials: 'SB', background: '#2B2D42', foreground: '#EED6C4' },
-    colors: [
-      { name: 'Blush', hex: '#E8B4B8' },
-      { name: 'Sand', hex: '#EED6C4' },
-      { name: 'Ink', hex: '#2B2D42' },
-    ],
-    tone: ['Warm', 'Expert', 'Reassuring'],
-  },
-  catalog: [
-    {
-      name: 'Hydrating facial',
-      description: 'Deep cleanse, exfoliation and a hyaluronic mask.',
-      price: '€70',
-      duration: '60 min',
-    },
-    { name: 'Chemical peel', description: 'Gentle AHA peel for tone and texture.', price: '€90', duration: '45 min' },
-    { name: 'LED therapy', description: 'Red-light session to calm and repair.', price: '€50', duration: '30 min' },
-    {
-      name: 'Autumn reset package',
-      description: 'Three facials over six weeks, with a home routine.',
-      price: '€240',
-      duration: '3 × 60 min',
-    },
-  ],
-}
-
 export function hasSection(profile: Profile, section: Section) {
   if (section === 'catalog') return (profile.catalog?.length ?? 0) > 0
   if (section === 'calendar') return !!(profile.calendar?.members?.length || profile.calendar?.tool)
+  if (section === 'branding') return !!(profile.branding?.logoUrl || profile.branding?.colors.length)
   return !!profile[section]
 }
 

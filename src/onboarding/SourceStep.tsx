@@ -20,9 +20,9 @@ import { Icon } from './Icon.tsx'
 import { SparkMark } from './SparkMark.tsx'
 import type { ImportRequest, Source } from './types.ts'
 
-const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement }[] = [
+const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement; disabled?: boolean }[] = [
   { value: 'website', title: 'My website', description: 'Import from your site', icon: Globe02Icon },
-  { value: 'instagram', title: 'Instagram', description: 'Import from your profile', icon: InstagramIcon },
+  { value: 'instagram', title: 'Instagram', description: 'Coming soon', icon: InstagramIcon, disabled: true },
   { value: 'none', title: "I don't have a website", description: 'Start from a quick chat', icon: Message01Icon },
 ]
 
@@ -98,7 +98,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
             <Stack gap={3}>
               {OPTIONS.map((option) => (
                 <FieldLabel key={option.value} htmlFor={`source-${option.value}`}>
-                  <Field orientation="horizontal">
+                  <Field orientation="horizontal" data-disabled={option.disabled}>
                     {/* EmptyMedia borrowed for its grey tile: the DS has no media container for this yet. */}
                     <EmptyMedia variant="icon">
                       <Icon icon={option.icon} size={20} />
@@ -108,7 +108,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
                       <FieldDescription>{option.description}</FieldDescription>
                       {detail(option.value)}
                     </FieldContent>
-                    <RadioGroupItem value={option.value} id={`source-${option.value}`} />
+                    <RadioGroupItem value={option.value} id={`source-${option.value}`} disabled={option.disabled} />
                   </Field>
                 </FieldLabel>
               ))}

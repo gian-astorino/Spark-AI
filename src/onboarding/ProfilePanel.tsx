@@ -118,35 +118,39 @@ function SectionBody({ section, profile }: { section: Section; profile: Profile 
       const b = profile.branding!
       return (
         <Stack gap={4}>
-          <Inline gap={3} align="center">
-            {/* The logo and swatches are data: their colours are content, not styling. */}
-            <span className="logo" style={{ background: b.logo.background, color: b.logo.foreground }}>
-              {b.logo.initials}
-            </span>
-            <Stack gap={1}>
-              <ItemTitle>Logo</ItemTitle>
-              <ItemDescription>From your website header</ItemDescription>
-            </Stack>
-          </Inline>
-          <div className="swatches">
-            {b.colors.map((color) => (
-              <div key={color.hex} className="swatch-card">
-                <span className="swatch" style={{ background: color.hex }} />
-                <ItemTitle>{color.name}</ItemTitle>
-                <ItemDescription>{color.hex}</ItemDescription>
-              </div>
-            ))}
-          </div>
-          <Stack gap={2}>
-            <ItemDescription>Tone of voice</ItemDescription>
-            <Inline gap={2}>
-              {b.tone.map((word) => (
-                <Badge key={word} variant="secondary">
-                  {word}
-                </Badge>
-              ))}
+          {b.logoUrl && (
+            <Inline gap={3} align="center">
+              <img className="logo" src={b.logoUrl} alt="Logo" />
+              <Stack gap={1}>
+                <ItemTitle>Logo</ItemTitle>
+                <ItemDescription>From your website</ItemDescription>
+              </Stack>
             </Inline>
-          </Stack>
+          )}
+          {b.colors.length > 0 && (
+            <div className="swatches">
+              {b.colors.map((color) => (
+                <div key={color.hex + color.name} className="swatch-card">
+                  {/* A data swatch: the colour is content, not styling. */}
+                  <span className="swatch" style={{ background: color.hex }} />
+                  <ItemTitle>{color.name}</ItemTitle>
+                  <ItemDescription>{color.hex}</ItemDescription>
+                </div>
+              ))}
+            </div>
+          )}
+          {b.tone.length > 0 && (
+            <Stack gap={2}>
+              <ItemDescription>Tone of voice</ItemDescription>
+              <Inline gap={2}>
+                {b.tone.map((word) => (
+                  <Badge key={word} variant="secondary">
+                    {word}
+                  </Badge>
+                ))}
+              </Inline>
+            </Stack>
+          )}
         </Stack>
       )
     }
