@@ -99,10 +99,17 @@ export interface AdProposal {
 }
 
 /** The model's first-ad proposal for a business with a complete profile. */
-export async function requestProposal(businessId: string): Promise<AdProposal> {
+export async function requestProposal(businessId: string): Promise<{ id: string; proposal: AdProposal }> {
   const { data, error } = await supabase.functions.invoke('proposal', { body: { business_id: businessId } })
   if (error) throw error
-  return data.proposal
+  return { id: data.id, proposal: data.proposal }
+}
+
+/** The proposal's image, generated from the branding. Takes up to a minute or two. */
+export async function requestCreative(proposalId: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('creative', { body: { proposal_id: proposalId } })
+  if (error) throw error
+  return data.url
 }
 
 export async function loadProfile(businessId: string): Promise<Profile> {

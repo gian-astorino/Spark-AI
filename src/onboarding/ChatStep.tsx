@@ -37,6 +37,7 @@ import {
   checkImport,
   createBusiness,
   loadProfile,
+  requestCreative,
   requestProposal,
   startImport,
   uploadAttachment,
@@ -70,7 +71,14 @@ type Entry =
   | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
   | { id: number; from: 'user'; text: string; files?: PickedFile[] }
   | { id: number; from: 'import'; job: string }
-  | { id: number; from: 'proposal'; proposal?: AdProposal; failed?: boolean }
+  | {
+      id: number
+      from: 'proposal'
+      proposal?: AdProposal
+      failed?: boolean
+      /** The generated image: undefined while it is being made, null if it failed. */
+      creative?: string | null
+    }
 
 interface Job {
   label: string
@@ -132,8 +140,14 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     const id = nextId++
     setEntries((list) => [...list.filter((entry) => entry.from !== 'proposal'), { id, from: 'proposal' }])
     try {
-      const proposal = await requestProposal(await businessId())
+      const { id: proposalId, proposal } = await requestProposal(await businessId())
       setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, proposal } : entry)))
+      // The image follows: the ad shows the brand colour until it arrives.
+      const creative = await requestCreative(proposalId).catch((error) => {
+        console.error(error)
+        return null
+      })
+      setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, creative } : entry)))
     } catch (error) {
       console.error(error)
       setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, failed: true } : entry)))
@@ -357,6 +371,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                           </Bubble>
                           <AdPreview
                             proposal={entry.proposal}
+                            creative={entry.creative}
                             profile={profile}
                             onRegenerate={() => void propose()}
                             regenerating={proposing}

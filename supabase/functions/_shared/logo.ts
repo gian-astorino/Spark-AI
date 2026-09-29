@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import OpenAI, { toFile } from 'openai'
 import { PREVIEW_CRAWLER, searchImages } from './firecrawl.ts'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -6,12 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // the brand colours are read from it: a site's CSS colours say less about the
 // brand than its mark does.
 //
-// No generative model touches the logo: it would redraw it, and a redrawn
-// logo is a different logo. Raster logos are resampled (bicubic) onto a
-// transparent square; SVG logos, already sharp at any size, are only centred
-// on a square canvas.
+// Raster logos are recreated by gpt-image-2.5 and kept only if the vision
+// model confirms they are still the same logo; otherwise they are resampled
+// (bicubic) onto a transparent square. SVG logos, already sharp at any size,
+// are only centred on a square canvas.
 
 const VISION_MODEL = 'gpt-5.5'
+const IMAGE_MODEL = 'gpt-image-2.5-sunburst'
 const LOGO_SIZE = 1024
 const LOGO_PADDING = 0.1
 
@@ -109,11 +110,87 @@ async function squareSvgLogo(db: SupabaseClient, businessId: string, svg: string
 }
 
 /** The raster logo, resampled onto a transparent square. */
-async function redraw(db: SupabaseClient, businessId: string, file: Blob, _extension: string) {
-  const png = await squareLogo(new Uint8Array(await file.arrayBuffer()))
+/**
+ * The logo recreated by the image model as a clean, square, high-resolution
+ * version of itself. A model redraws rather than copies (gpt-image-2 once
+ * changed Blue Zone's letters), so the vision model compares the result with
+ * the original and, if anything changed, the faithful resampled square is
+ * kept instead.
+ */
+async function redraw(db: SupabaseClient, businessId: string, file: Blob, extension: string) {
+  const original = new Uint8Array(await file.arrayBuffer())
   const path = `${businessId}/logo-hd.png`
+  let png: Uint8Array | null = null
+  try {
+    const result = await openai.images.edit({
+      model: IMAGE_MODEL,
+      image: await toFile(file, `logo.${extension}`, { type: file.type }),
+      prompt: REDRAW,
+      size: '1024x1024',
+      quality: 'high',
+      input_fidelity: 'high',
+      // The model keeps the original's own background, whatever it is.
+      background: 'auto',
+      output_format: 'png',
+    })
+    const b64 = result.data?.[0]?.b64_json
+    if (b64) {
+      const candidate = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0))
+      if (await sameLogo(original, candidate)) png = candidate
+      else console.warn('Recreated logo differs from the original: keeping the resampled one')
+    }
+  } catch (failure) {
+    console.warn('Logo recreation failed, keeping the resampled one:', String(failure))
+  }
+  png ??= await squareLogo(original)
   await db.storage.from('logos').upload(path, png, { contentType: 'image/png', upsert: true })
   return path
+}
+
+const REDRAW = [
+  'Recreate this exact logo as a clean, sharp, high-resolution square image.',
+  'Keep the design identical: the same shapes, the same lettering letter by letter, the same colours and proportions.',
+  'Do not add, remove, restyle or reinterpret anything; no outlines, shadows or effects that are not in the original.',
+  "Keep the original's background exactly as it is: the same colour, or transparent if the original is transparent. Extend it to fill the square, with the logo centred and even padding.",
+].join(' ')
+
+/** Whether the recreated logo is still the same logo, as the vision model sees it. */
+async function sameLogo(original: Uint8Array, candidate: Uint8Array): Promise<boolean> {
+  const response = await openai.responses.create({
+    model: VISION_MODEL,
+    reasoning: { effort: 'low' },
+    input: [
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Image 1, the original logo:' },
+          { type: 'input_image', image_url: dataUrl(original[0] === 0xff ? 'image/jpeg' : 'image/png', original), detail: 'high' },
+          { type: 'input_text', text: 'Image 2, a recreation:' },
+          { type: 'input_image', image_url: dataUrl('image/png', candidate), detail: 'high' },
+          {
+            type: 'input_text',
+            text: 'Is image 2 the same logo as image 1? It must have the same lettering (every letter), the same shapes, the same colours and the same background colour; only size, sharpness and the amount of empty space around it may differ. An added outline, shadow, changed letter or changed background means no.',
+          },
+        ],
+      },
+    ],
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'same_logo',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: { same: { type: 'boolean' }, difference: { type: 'string' } },
+          required: ['same', 'difference'],
+          additionalProperties: false,
+        },
+      },
+    },
+  })
+  const verdict = JSON.parse(response.output_text || '{"same":false}') as { same: boolean; difference?: string }
+  if (!verdict.same) console.warn('Logo check:', verdict.difference)
+  return verdict.same
 }
 
 /** Below this many pixels on its short side, a logo is worth a search for a larger copy. */
@@ -318,6 +395,16 @@ async function decodeImage(bytes: Uint8Array): Promise<Pixels> {
   throw new Error('Only PNG and JPEG logos can be squared; the original is kept')
 }
 
+/** The corners' colour when all four are opaque and alike; null for a transparent logo. */
+function cornerColour(img: Pixels): [number, number, number, number] | null {
+  const at = (x: number, y: number) => Array.from(img.data.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 4))
+  const corners = [at(0, 0), at(img.width - 1, 0), at(0, img.height - 1), at(img.width - 1, img.height - 1)]
+  if (corners.some((corner) => corner[3] < 250)) return null
+  const [first] = corners
+  const alike = corners.every((corner) => Math.abs(corner[0] - first[0]) + Math.abs(corner[1] - first[1]) + Math.abs(corner[2] - first[2]) < 30)
+  return alike ? [first[0], first[1], first[2], 255] : null
+}
+
 /** The box around what is drawn: neither transparent nor near-white. */
 function inkBox(img: Pixels): Box {
   let x0 = img.width
@@ -353,7 +440,13 @@ export async function squareLogo(bytes: Uint8Array): Promise<Uint8Array> {
   const h = Math.max(1, Math.round(box.h * scale))
   const left = Math.round((LOGO_SIZE - w) / 2)
   const top = Math.round((LOGO_SIZE - h) / 2)
-  const out = new Uint8Array(LOGO_SIZE * LOGO_SIZE * 4) // transparent
+  // The original's own background: the colour of its corners when they are
+  // opaque (a white or coloured square logo), transparent otherwise.
+  const out = new Uint8Array(LOGO_SIZE * LOGO_SIZE * 4)
+  const background = cornerColour(src)
+  if (background) {
+    for (let i = 0; i < out.length; i += 4) out.set(background, i)
+  }
   const px = (x: number, y: number, c: number) => {
     const cx = Math.min(Math.max(x, 0), src.width - 1)
     const cy = Math.min(Math.max(y, 0), src.height - 1)
@@ -385,10 +478,12 @@ export async function squareLogo(bytes: Uint8Array): Promise<Uint8Array> {
       const i = ((top + y) * LOGO_SIZE + left + x) * 4
       const alpha = Math.min(Math.max(a / sum, 0), 1)
       const channel = (value: number) => (alpha ? Math.min(255, Math.max(0, Math.round(value / sum / alpha))) : 0)
-      out[i] = channel(r)
-      out[i + 1] = channel(g)
-      out[i + 2] = channel(b)
-      out[i + 3] = Math.round(alpha * 255)
+      // Composited over the background, so soft edges blend into it.
+      const under = background ?? [0, 0, 0, 0]
+      out[i] = Math.round(channel(r) * alpha + under[0] * (1 - alpha))
+      out[i + 1] = Math.round(channel(g) * alpha + under[1] * (1 - alpha))
+      out[i + 2] = Math.round(channel(b) * alpha + under[2] * (1 - alpha))
+      out[i + 3] = background ? 255 : Math.round(alpha * 255)
     }
   }
   const UPNG = (await import('upng-js')).default
@@ -447,7 +542,7 @@ async function imageColors(db: SupabaseClient, path: string): Promise<string[]> 
         content: [
           {
             type: 'input_text',
-            text: 'List the brand colours of this logo, most prominent first, as #RRGGBB: at most three, ignoring the background and plain white. If the logo is a single colour, return one.',
+            text: 'List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. A solid coloured background is part of the brand and counts; ignore only a plain white or transparent background.',
           },
           { type: 'input_image', image_url: data.signedUrl, detail: 'high' },
         ],

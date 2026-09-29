@@ -38,18 +38,22 @@ const euro = (value: number) =>
  */
 export function AdPreview({
   proposal,
+  creative,
   profile,
   onRegenerate,
   regenerating,
 }: {
   proposal: AdProposal
+  /** The generated image: undefined while it is being made, null if that failed. */
+  creative?: string | null
   profile: Profile
   onRegenerate: () => void
   regenerating: boolean
 }) {
   const name = profile.business?.name ?? 'La tua attività'
   const brand = profile.branding?.colors[0]?.hex
-  const photo = profile.photos?.[0]?.url
+  // The generated image; if it failed, the business's own photo; else the brand colour.
+  const photo = creative ?? profile.photos?.[0]?.url
   const { treatment, offer, ad, visual, audience, budget } = proposal
 
   return (
@@ -81,6 +85,7 @@ export function AdPreview({
           }
         >
           <span className="ad-visual-text">{visual.overlay_text}</span>
+          {creative === undefined && <span className="ad-visual-status">Sto creando l'immagine…</span>}
           <span className="ad-price">
             <s>{euro(treatment.list_price_eur)}</s>
             <strong>{euro(offer.discounted_price_eur)}</strong>

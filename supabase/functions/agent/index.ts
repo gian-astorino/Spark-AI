@@ -34,7 +34,9 @@ Your job is to complete the business profile through a short, friendly conversat
 How to work:
 - Each turn you receive the current profile as data. Never ask for something it already has, unless it looks wrong.
 - Ask one thing at a time, in a sentence or two. Prefer the most important gap: name and sector, then location and hours, then catalog, then calendar.
-- Whenever the owner gives you information, save it with the tools straight away, then continue. Convert what they say into the tools' formats (e.g. "lun-ven 9-19, sab mattina" becomes intervals; "70 euro, un'ora" becomes 70 and 60).
+- Whenever the owner gives you information, save it with the tools straight away, then continue.
+- Never say you saved, received or changed something unless the tool call for it returned success in this turn. If you have not called the tool, call it first; if it failed, say so.
+- When the owner sends their logo (an attached image they call their logo, or that clearly is one), call set_logo with its attachment id before answering. Its colours are then read from it automatically. Convert what they say into the tools' formats (e.g. "lun-ven 9-19, sab mattina" becomes intervals; "70 euro, un'ora" becomes 70 and 60).
 - Never invent facts. If something is unclear, ask.
 - When a question has a few likely answers, call offer_choices.
 - If information is missing, the owner can paste a link (their Treatwell or Fresha page, Google Maps, a price list): the app reads it for you and tells you what it added. Mention this when catalog or hours are missing.
@@ -85,6 +87,9 @@ async function turn(db: SupabaseClient, businessId: string, text: string, fromOw
   })
 
   const ctx: ToolContext = { db, businessId, source: 'chat', choices: [] }
+  // What the model actually did this turn, kept with its reply: a claim in the
+  // text can then be checked against the tools that ran.
+  const actions: { tool: string; result: string }[] = []
   // The profile rides along as a separate block of data, never as instructions.
   let input: OpenAI.Responses.ResponseInput = [
     {
@@ -122,17 +127,33 @@ async function turn(db: SupabaseClient, businessId: string, text: string, fromOw
       } catch (failure) {
         output = `Error: ${String(failure)}`
       }
+      actions.push({ tool: call.name, result: typeof output === 'string' ? output.slice(0, 200) : '(content)' })
       input.push({ type: 'function_call_output', call_id: call.call_id, output })
     }
   }
 
   const reply = response?.output_text?.trim() ?? ''
+
+  // Safety net: the model once answered "I got your logo" without saving it.
+  // An image attached, no logo yet, a reply about the logo and no set_logo
+  // call means the first attached image is the logo.
+  const image = files.find((path) => !path.toLowerCase().endsWith('.pdf'))
+  if (image && /\blogo\b/i.test(reply) && !actions.some((action) => action.tool === 'set_logo')) {
+    const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
+    if (!brand?.logo_path) {
+      try {
+        actions.push({ tool: 'set_logo (safety net)', result: String(await runTool('set_logo', { attachment: image }, ctx)) })
+      } catch (failure) {
+        actions.push({ tool: 'set_logo (safety net)', result: `Error: ${String(failure)}` })
+      }
+    }
+  }
   await db.from('conversations').update({ last_response_id: previous }).eq('id', conversation.id)
   await db.from('messages').insert({
     conversation_id: conversation.id,
     role: 'assistant',
     content: response?.output ?? [],
-    display: { text: reply, choices: ctx.choices },
+    display: { text: reply, choices: ctx.choices, actions },
   })
   return { reply, choices: ctx.choices }
 }
