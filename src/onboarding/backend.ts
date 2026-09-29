@@ -88,9 +88,26 @@ export const CALENDARS: Record<string, string> = {
   paper: 'Agenda cartacea',
 }
 
+export interface AdProposal {
+  treatment: { name: string; category?: string; duration_minutes?: number; list_price_eur: number; why: string }
+  offer: { discounted_price_eur: number; discount_percent: number; conditions: string; duration_days: number }
+  ad: { primary_text: string; headline: string; description: string; cta: string }
+  visual: { concept: string; overlay_text: string }
+  audience: { radius_km: number; age_min: number; age_max: number; genders: 'all' | 'women' | 'men'; interests: string[] }
+  budget: { daily_eur: number; days: number; total_eur: number }
+  rationale: string
+}
+
+/** The model's first-ad proposal for a business with a complete profile. */
+export async function requestProposal(businessId: string): Promise<AdProposal> {
+  const { data, error } = await supabase.functions.invoke('proposal', { body: { business_id: businessId } })
+  if (error) throw error
+  return data.proposal
+}
+
 export async function loadProfile(businessId: string): Promise<Profile> {
   const [business, locations, brand, colors, catalog, team, calendar, media] = await Promise.all([
-    supabase.from('businesses').select('name, description, sector').eq('id', businessId).single(),
+    supabase.from('businesses').select('name, description, sector, onboarding_status').eq('id', businessId).single(),
     supabase
       .from('locations')
       .select('id, name, address, position, opening_hours(weekday, opens_at, closes_at)')
@@ -112,7 +129,7 @@ export async function loadProfile(businessId: string): Promise<Profile> {
     supabase.from('business_media').select('bucket, path, caption, position').eq('business_id', businessId).order('position'),
   ])
 
-  const profile: Profile = {}
+  const profile: Profile = { status: business.data?.onboarding_status ?? undefined }
   const b = business.data
   if (b) profile.business = { name: b.name ?? undefined, description: b.description ?? undefined, sector: b.sector ?? undefined }
 

@@ -37,11 +37,14 @@ import {
   checkImport,
   createBusiness,
   loadProfile,
+  requestProposal,
   startImport,
   uploadAttachment,
+  type AdProposal,
   type AgentTurn,
   type ImportSource,
 } from './backend.ts'
+import { AdPreview } from './AdPreview.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
 import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
@@ -67,6 +70,7 @@ type Entry =
   | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
   | { id: number; from: 'user'; text: string; files?: PickedFile[] }
   | { id: number; from: 'import'; job: string }
+  | { id: number; from: 'proposal'; proposal?: AdProposal; failed?: boolean }
 
 interface Job {
   label: string
@@ -92,6 +96,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   const [draft, setDraft] = useState('')
   const [files, setFiles] = useState<PickedFile[]>([])
   const [editing, setEditing] = useState<Editing | null>(null)
+  const [proposing, setProposing] = useState(false)
+  const proposed = useRef(false)
   const picker = useRef<HTMLInputElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   // Agent turns in flight: the typing indicator shows while any is.
@@ -114,6 +120,33 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
       console.error(error)
     }
   }
+
+  /**
+   * The first-ad proposal, as a message of Spark's. Replaces the one on screen
+   * when asked again, so "Rigenera" does not stack proposals.
+   */
+  async function propose() {
+    if (proposing) return
+    proposed.current = true
+    setProposing(true)
+    const id = nextId++
+    setEntries((list) => [...list.filter((entry) => entry.from !== 'proposal'), { id, from: 'proposal' }])
+    try {
+      const proposal = await requestProposal(await businessId())
+      setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, proposal } : entry)))
+    } catch (error) {
+      console.error(error)
+      setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, failed: true } : entry)))
+    } finally {
+      setProposing(false)
+    }
+  }
+
+  // Once the owner confirms the profile, Spark proposes their first ad by itself.
+  useEffect(() => {
+    if (profile.status === 'completed' && !proposed.current) void propose()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on completion
+  }, [profile.status])
 
   /** One agent turn; its reply joins the conversation and the panel catches up. */
   async function agentTurn(turn: AgentTurn) {
@@ -267,6 +300,11 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
             <SparkMark withName />
           </Inline>
           <Inline gap={3} align="center">
+            {profile.catalog?.some((item) => item.priceCents) && (
+              <Button variant="outline" size="sm" onClick={() => void propose()} disabled={proposing}>
+                Prima inserzione
+              </Button>
+            )}
             <span className="step-count">Passo 2 di 2</span>
             <span className="profile-toggle">
               <Sheet>
@@ -308,7 +346,37 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                     <SparkMark />
                   </MessageAvatar>
                   <MessageContent>
-                    {entry.from === 'import' ? (
+                    {entry.from === 'proposal' ? (
+                      entry.proposal ? (
+                        <Stack gap={3}>
+                          <Bubble variant="muted">
+                            <BubbleContent>
+                              Ecco una proposta per la tua prima inserzione, costruita sul tuo listino. Se non ti convince,
+                              rigenerala.
+                            </BubbleContent>
+                          </Bubble>
+                          <AdPreview
+                            proposal={entry.proposal}
+                            profile={profile}
+                            onRegenerate={() => void propose()}
+                            regenerating={proposing}
+                          />
+                        </Stack>
+                      ) : (
+                        <Bubble variant="muted">
+                          <BubbleContent>
+                            {entry.failed ? (
+                              'Non sono riuscito a preparare la proposta. Riprova con “Prima inserzione”.'
+                            ) : (
+                              <Inline gap={2} align="center">
+                                <Spinner />
+                                Sto pensando alla tua prima inserzione…
+                              </Inline>
+                            )}
+                          </BubbleContent>
+                        </Bubble>
+                      )
+                    ) : entry.from === 'import' ? (
                       <ImportMarker {...jobs[entry.job]} onSkip={() => skip(entry.job)} />
                     ) : (
                       <Stack gap={3}>

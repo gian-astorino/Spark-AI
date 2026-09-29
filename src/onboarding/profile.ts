@@ -48,6 +48,8 @@ export interface CatalogItem {
 }
 
 export interface Profile {
+  /** 'completed' once the owner confirmed the recap and the agent closed the onboarding. */
+  status?: string
   business?: { name?: string; description?: string; sector?: string }
   locations?: Location[]
   branding?: {

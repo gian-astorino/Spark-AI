@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "openai": "npm:openai@^7.23.0",
+    "openai/": "npm:/openai@^7.23.0/",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.117.2",
+    "upng-js": "npm:upng-js@^2.1.0",
+    "jpeg-js": "npm:jpeg-js@^0.4.4"
+  }
+}
