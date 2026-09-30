@@ -61,6 +61,10 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
           logo_path: logo,
           // Inline logos arrive as data: URLs, often tens of KB: the copy in storage is enough.
           logo_source_url: branding.logo?.startsWith('http') ? branding.logo : null,
+          // A new logo starts over: no job, no error from the previous one.
+          logo_job_id: null,
+          logo_job_status: null,
+          logo_error: null,
         }
       : {}),
     fonts: brandFonts(branding),

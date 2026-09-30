@@ -143,6 +143,16 @@ export const DEFS: ToolDef[] = [
     },
   },
   {
+    name: 'set_logo',
+    description: 'Use an attached image as the business logo. Only when the owner says it is their logo, or it clearly is.',
+    input_schema: {
+      type: 'object',
+      properties: { attachment: { type: 'string', description: 'The attachment id, as listed with the message' } },
+      required: ['attachment'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'view_logo',
     description: 'Look at the logo currently in the profile, e.g. to propose brand colours that match it.',
     input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
@@ -386,6 +396,28 @@ export async function runTool(
       )
       return 'Saved.'
 
+    case 'set_logo': {
+      const path = ownAttachment(String(input.attachment), businessId)
+      const { data: file, error } = await db.storage.from('uploads').download(path)
+      if (error || !file) throw new Error(`Attachment not found: ${input.attachment}`)
+      const extension = path.split('.').pop() ?? 'png'
+      const logoPath = `${businessId}/logo.${extension}`
+      await check(db.storage.from('logos').upload(logoPath, file, { contentType: file.type, upsert: true }))
+      await check(
+        db.from('brand_profiles').upsert({
+          business_id: businessId,
+          logo_path: logoPath,
+          // A new logo starts over: no job, no error from the previous one.
+          logo_job_id: null,
+          logo_job_status: null,
+          logo_error: null,
+          source: ctx.source,
+        }),
+      )
+      requestLogoRefresh(businessId)
+      return LOGO_SAVED
+    }
+
     case 'view_logo': {
       const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
       if (!brand?.logo_path) return 'There is no logo in the profile.'
@@ -439,7 +471,15 @@ export async function runTool(
       const logoPath = `${businessId}/logo.${extension}`
       await check(db.storage.from('logos').upload(logoPath, image, { contentType: type, upsert: true }))
       await check(
-        db.from('brand_profiles').upsert({ business_id: businessId, logo_path: logoPath, logo_source_url: url, source: ctx.source }),
+        db.from('brand_profiles').upsert({
+          business_id: businessId,
+          logo_path: logoPath,
+          logo_source_url: url,
+          logo_job_id: null,
+          logo_job_status: null,
+          logo_error: null,
+          source: ctx.source,
+        }),
       )
       requestLogoRefresh(businessId)
       return LOGO_SAVED

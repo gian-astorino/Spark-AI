@@ -87,8 +87,8 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
         prompt: REDRAW,
         images: [dataUrl(type, source)],
         action: 'edit',
+        // No inputFidelity: gpt-image-2.5 rejects it; the prompt and the check keep it faithful.
         background: 'auto',
-        inputFidelity: 'high',
       })
       update.logo_job_status = 'running'
     }
