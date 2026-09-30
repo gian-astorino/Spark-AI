@@ -52,8 +52,6 @@ export function AdPreview({
 }) {
   const name = profile.business?.name ?? 'La tua attività'
   const brand = profile.branding?.colors[0]?.hex
-  // The generated image; if it failed, the business's own photo; else the brand colour.
-  const photo = creative ?? profile.photos?.[0]?.url
   const { treatment, offer, ad, visual, audience, budget } = proposal
 
   return (
@@ -75,24 +73,20 @@ export function AdPreview({
 
         <p className="ad-text">{ad.primary_text}</p>
 
-        {/* The brand's colour or photo is content here: the visual shows their ad, not our UI. */}
-        <div
-          className="ad-visual"
-          style={
-            photo
-              ? { backgroundImage: `linear-gradient(to top, rgb(0 0 0 / 0.65), rgb(0 0 0 / 0.1)), url("${photo}")` }
-              : { background: brand ? `linear-gradient(135deg, ${brand}, color-mix(in oklch, ${brand} 55%, black))` : undefined }
-          }
-        >
-          <span className="ad-visual-text">{visual.overlay_text}</span>
-          {creative === undefined && <span className="ad-visual-status">Sto creando l'immagine…</span>}
-          {creative === null && <span className="ad-visual-status">Non sono riuscito a creare l'immagine</span>}
-          <span className="ad-price">
-            <s>{euro(treatment.list_price_eur)}</s>
-            <strong>{euro(offer.discounted_price_eur)}</strong>
-            <span className="ad-discount">-{offer.discount_percent}%</span>
-          </span>
-        </div>
+        {/* The ad image is the ad: its text is written by the image model, nothing is laid over it.
+            Until it arrives, the brand's colour (content, not our UI). */}
+        {creative ? (
+          <img className="ad-visual" src={creative} alt={visual.overlay_text} />
+        ) : (
+          <div
+            className="ad-visual ad-visual-empty"
+            style={{ background: brand ? `linear-gradient(135deg, ${brand}, color-mix(in oklch, ${brand} 55%, black))` : undefined }}
+          >
+            <span className="ad-visual-status">
+              {creative === undefined ? "Sto creando l'inserzione…" : "Non sono riuscito a creare l'inserzione"}
+            </span>
+          </div>
+        )}
 
         <footer className="ad-foot">
           <span>

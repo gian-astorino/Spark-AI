@@ -28,7 +28,7 @@ Think it through before answering:
 - The discount: realistic for the sector, usually 15-30% off the list price, ending on a clean price (49 €, not 48,60 €). Only for new clients, for a limited time.
 - The ad, in Italian and in the business's tone of voice: a first line under 125 characters that works on its own, then at most two short lines; a headline under 40 characters; a short description; the call to action that fits how the business takes bookings.
 - Meta's advertising policies for health and beauty: no questions or statements about the reader's personal attributes ("Hai la pelle secca?", "Sei stanca delle tue rughe?"), no before/after, no guaranteed results or medical claims, no body shaming.
-- The visual: a concept that uses the brand's colours and, if the business has photos, its own place or work; and a short text to overlay on it.
+- The visual: a simple concept for the ad image, in the brand's look; and its headline, a few words in Italian the image model will write on it, without prices (the prices are written next to it).
 - The audience: people living near the business (a radius in km around its address), age range and gender that fit the treatment, a few interests.
 - The budget: a small test, typically 5-15 € a day for 7-14 days.
 - Say briefly why this treatment and this offer, in Italian.
@@ -65,7 +65,7 @@ const SCHEMA = {
       type: 'object',
       properties: {
         concept: { type: 'string' },
-        overlay_text: { type: 'string', description: 'A few words on the image' },
+        overlay_text: { type: 'string', description: 'The headline written on the ad image: a few words, no prices' },
       },
       required: ['concept', 'overlay_text'],
       additionalProperties: false,

@@ -667,53 +667,17 @@
 }
 
 .ad-visual {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  display: block;
+  width: 100%;
   aspect-ratio: 1;
-  padding: 1.25rem;
+  object-fit: cover;
   background: var(--primary);
-  background-size: cover;
-  background-position: center;
+}
+
+.ad-visual-empty {
+  display: grid;
+  place-items: center;
   color: white;
-}
-
-.ad-visual-text {
-  font-size: 1.625rem;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-  text-shadow: 0 1px 12px rgb(0 0 0 / 0.25);
-}
-
-.ad-price {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  text-shadow: 0 1px 12px rgb(0 0 0 / 0.25);
-}
-
-.ad-price s {
-  font-size: 1rem;
-  opacity: 0.8;
-}
-
-.ad-price strong {
-  font-size: 2.25rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.ad-discount {
-  align-self: center;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: white;
-  color: black;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  text-shadow: none;
 }
 
 .ad-foot {
