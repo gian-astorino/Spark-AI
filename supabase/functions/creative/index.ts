@@ -82,6 +82,13 @@ Deno.serve(async (request) => {
     return json({ status: 'running' }, 200)
   } catch (failure) {
     console.error(failure)
+    // Kept on the proposal, so a start that failed can be told from one that never came.
+    if (!check) {
+      await db
+        .from('ad_proposals')
+        .update({ creative_status: 'failed', creative_error: `start: ${String(failure)}`.slice(0, 2000) })
+        .eq('id', proposal.id)
+    }
     return json({ error: String(failure) }, 500)
   }
 })
