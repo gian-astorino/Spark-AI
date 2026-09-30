@@ -734,3 +734,10 @@
   background: rgb(0 0 0 / 0.35);
   font-size: 0.8125rem;
 }
+
+/* The logo's place while its recreation is under way. */
+.logo-loading {
+  display: grid;
+  place-items: center;
+  background: var(--muted);
+}

@@ -60,7 +60,7 @@ export function AdPreview({
     <Stack gap={4}>
       <article className="ad-card" aria-label="Anteprima dell'inserzione">
         <header className="ad-head">
-          {profile.branding?.logoUrl ? (
+          {profile.branding?.logoUrl && !profile.branding.logoPending ? (
             <img className="ad-logo" src={profile.branding.logoUrl} alt="" />
           ) : (
             <Avatar>

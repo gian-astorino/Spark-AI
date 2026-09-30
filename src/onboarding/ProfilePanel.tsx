@@ -183,16 +183,29 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
       const edit = () => onEdit({ kind: 'branding' })
       return (
         <Stack gap={4}>
-          {b.logoUrl && (
+          {b.logoPending ? (
             <Inline gap={3} align="center">
-              <button type="button" className="logo-button" aria-label="Vedi il logo" onClick={() => onEdit({ kind: 'logo' })}>
-                <img className="logo" src={b.logoUrl} alt="Logo" />
-              </button>
+              {/* Not the original: the recreated logo takes its place in a minute or two. */}
+              <span className="logo logo-loading" aria-hidden>
+                <Spinner />
+              </span>
               <Stack gap={1}>
                 <ItemTitle>Logo</ItemTitle>
-                <ItemDescription>Tocca per vederlo</ItemDescription>
+                <ItemDescription>Sto ottimizzando il logo…</ItemDescription>
               </Stack>
             </Inline>
+          ) : (
+            b.logoUrl && (
+              <Inline gap={3} align="center">
+                <button type="button" className="logo-button" aria-label="Vedi il logo" onClick={() => onEdit({ kind: 'logo' })}>
+                  <img className="logo" src={b.logoUrl} alt="Logo" />
+                </button>
+                <Stack gap={1}>
+                  <ItemTitle>Logo</ItemTitle>
+                  <ItemDescription>Tocca per vederlo</ItemDescription>
+                </Stack>
+              </Inline>
+            )
           )}
           <Editable label="Modifica branding" onClick={edit}>
             <Stack gap={4}>

@@ -94,6 +94,8 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
     }
   } catch (failure) {
     failures.push(String(failure))
+    // No recreation coming: the app stops waiting and shows the original.
+    update.logo_job_status = 'failed'
   }
   await db
     .from('brand_profiles')

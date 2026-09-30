@@ -192,6 +192,10 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       tone: brand.data?.tone_of_voice ?? [],
       toneDescription: brand.data?.tone_description ?? undefined,
       logoJob: brand.data?.logo_job_status ?? undefined,
+      logoPending:
+        !!brand.data?.logo_path &&
+        !/\/logo-(hd\.png|square\.svg)$/.test(brand.data.logo_path) &&
+        !['rejected', 'failed'].includes(brand.data?.logo_job_status ?? ''),
     }
   }
 

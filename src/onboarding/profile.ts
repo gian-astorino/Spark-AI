@@ -62,6 +62,12 @@ export interface Profile {
     toneDescription?: string
     /** The logo's recreation: 'running' while gpt-image-2.5 works on it. */
     logoJob?: string
+    /**
+     * A logo is in, but its recreation is not: the panel shows a loading tile
+     * rather than the original. False once recreated, or if it failed or was
+     * turned down (then the original is the logo).
+     */
+    logoPending?: boolean
   }
   photos?: { url: string; caption?: string }[]
   catalog?: CatalogItem[]
