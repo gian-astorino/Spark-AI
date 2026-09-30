@@ -60,6 +60,8 @@ export interface Profile {
     tone: string[]
     /** How the business talks, in a few sentences. */
     toneDescription?: string
+    /** The logo's recreation: 'running' while gpt-image-2.5 works on it. */
+    logoJob?: string
   }
   photos?: { url: string; caption?: string }[]
   catalog?: CatalogItem[]

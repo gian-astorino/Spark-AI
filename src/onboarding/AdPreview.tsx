@@ -86,6 +86,7 @@ export function AdPreview({
         >
           <span className="ad-visual-text">{visual.overlay_text}</span>
           {creative === undefined && <span className="ad-visual-status">Sto creando l'immagine…</span>}
+          {creative === null && <span className="ad-visual-status">Non sono riuscito a creare l'immagine</span>}
           <span className="ad-price">
             <s>{euro(treatment.list_price_eur)}</s>
             <strong>{euro(offer.discounted_price_eur)}</strong>

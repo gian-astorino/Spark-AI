@@ -155,7 +155,7 @@ async function turn(db: SupabaseClient, businessId: string, text: string, fromOw
     content: response?.output ?? [],
     display: { text: reply, choices: ctx.choices, actions },
   })
-  return { reply, choices: ctx.choices }
+  return { reply, choices: ctx.choices, actions: actions.map((action) => action.tool) }
 }
 
 /**

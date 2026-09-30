@@ -59,6 +59,8 @@ export async function checkImport(jobId: string): Promise<ImportProgress> {
 export interface AgentReply {
   reply: string
   choices: string[]
+  /** The tools the agent ran this turn. */
+  actions: string[]
 }
 
 export type AgentTurn = { message: string; attachments?: string[] } | { event: string }
@@ -67,7 +69,7 @@ export type AgentTurn = { message: string; attachments?: string[] } | { event: s
 export async function askAgent(businessId: string, turn: AgentTurn): Promise<AgentReply> {
   const { data, error } = await supabase.functions.invoke('agent', { body: { business_id: businessId, ...turn } })
   if (error) throw error
-  return { reply: data.reply ?? '', choices: data.choices ?? [] }
+  return { reply: data.reply ?? '', choices: data.choices ?? [], actions: data.actions ?? [] }
 }
 
 /** Uploads a file the owner attached; returns its id, the storage path the agent's tools take. */
@@ -105,11 +107,31 @@ export async function requestProposal(businessId: string): Promise<{ id: string;
   return { id: data.id, proposal: data.proposal }
 }
 
-/** The proposal's image, generated from the branding. Takes up to a minute or two. */
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * The proposal's image, generated from the branding as a background job:
+ * started, then checked every few seconds until it is ready (a few minutes
+ * at most). Resolves to its address, or throws if it failed.
+ */
 export async function requestCreative(proposalId: string): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('creative', { body: { proposal_id: proposalId } })
+  const started = await supabase.functions.invoke('creative', { body: { proposal_id: proposalId } })
+  if (started.error) throw started.error
+  for (let attempt = 0; attempt < 90; attempt++) {
+    await wait(4000)
+    const { data, error } = await supabase.functions.invoke('creative', { body: { proposal_id: proposalId, check: true } })
+    if (error) throw error
+    if (data.status === 'done' && data.url) return data.url
+    if (data.status === 'failed') throw new Error(data.error ?? 'The image could not be generated')
+  }
+  throw new Error('The image took too long')
+}
+
+/** Moves the logo recreation on and reports it: 'running', 'done', 'rejected', 'failed' or 'none'. */
+export async function checkLogoJob(businessId: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('logo', { body: { business_id: businessId, check: true } })
   if (error) throw error
-  return data.url
+  return data.status
 }
 
 export async function loadProfile(businessId: string): Promise<Profile> {
@@ -122,7 +144,7 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       .order('position'),
     supabase
       .from('brand_profiles')
-      .select('logo_path, logo_source_url, fonts, tone_of_voice, tone_description')
+      .select('logo_path, logo_source_url, fonts, tone_of_voice, tone_description, logo_job_status')
       .eq('business_id', businessId)
       .maybeSingle(),
     supabase.from('brand_colors').select('name, hex').eq('business_id', businessId).order('position'),
@@ -169,6 +191,7 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       fonts: brand.data?.fonts ?? [],
       tone: brand.data?.tone_of_voice ?? [],
       toneDescription: brand.data?.tone_description ?? undefined,
+      logoJob: brand.data?.logo_job_status ?? undefined,
     }
   }
 

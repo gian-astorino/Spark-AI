@@ -35,6 +35,7 @@ import {
 import {
   askAgent,
   checkImport,
+  checkLogoJob,
   createBusiness,
   loadProfile,
   requestCreative,
@@ -156,6 +157,24 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     }
   }
 
+  // While the logo is being recreated, move it on and pick it up once it is done.
+  useEffect(() => {
+    if (profile.branding?.logoJob !== 'running') return
+    const timer = setInterval(async () => {
+      try {
+        const status = await checkLogoJob(await businessId())
+        if (status !== 'running') {
+          clearInterval(timer)
+          void refreshProfile()
+        }
+      } catch (error) {
+        console.error(error)
+      }
+    }, 5000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the job's status only
+  }, [profile.branding?.logoJob])
+
   // Once the owner confirms the profile, Spark proposes their first ad by itself.
   useEffect(() => {
     if (profile.status === 'completed' && !proposed.current) void propose()
@@ -166,9 +185,12 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   async function agentTurn(turn: AgentTurn) {
     setPending((count) => count + 1)
     try {
-      const { reply, choices } = await askAgent(await businessId(), turn)
+      const { reply, choices, actions } = await askAgent(await businessId(), turn)
       if (reply) setEntries((list) => [...list, say(reply, choices.length ? choices : undefined)])
       await refreshProfile()
+      // A new logo starts its recreation a few seconds later, in another
+      // function: look again then, so the panel picks the job up and follows it.
+      if (actions.some((action) => action.startsWith('set_logo'))) setTimeout(() => void refreshProfile(), 8000)
     } catch (error) {
       console.error(error)
       setEntries((list) => [...list, say(AGENT_DOWN)])

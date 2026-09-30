@@ -1,4 +1,8 @@
-// POST /functions/v1/creative  { proposal_id }
+// POST /functions/v1/creative  { proposal_id }          starts the image, { status }
+// POST /functions/v1/creative  { proposal_id, check }   reports it, { status, url? }
+//
+// The image runs as an OpenAI background job (see _shared/image-jobs.ts): the
+// app calls "check" every few seconds until it is done.
 //
 // The image of an ad proposal, generated with the business's logo given to
 // the model as a reference image next to the prompt: the logo shapes the
@@ -6,11 +10,8 @@
 // and prices are laid over it by the app, where they are always spelled right.
 // Answers { url }.
 
-import OpenAI, { toFile } from 'openai'
-import { createClient } from '@supabase/supabase-js'
-
-const IMAGE_MODEL = 'gpt-image-2.5-sunburst'
-const openai = new OpenAI() // OPENAI_API_KEY from the function's secrets
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { checkImageJob, dataUrl, startImageJob } from '../_shared/image-jobs.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +20,7 @@ const cors = {
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors })
-  const { proposal_id } = await request.json().catch(() => ({}))
+  const { proposal_id, check } = await request.json().catch(() => ({}))
   if (typeof proposal_id !== 'string') return json({ error: 'proposal_id is required' }, 400)
 
   // The proposal is read with the caller's own token: RLS answers for ownership.
@@ -28,23 +29,26 @@ Deno.serve(async (request) => {
   })
   const { data: proposal } = await asUser
     .from('ad_proposals')
-    .select('id, business_id, content')
+    .select('id, business_id, content, creative_job_id, creative_status, creative_path, creative_error')
     .eq('id', proposal_id)
     .maybeSingle()
   if (!proposal) return json({ error: 'Proposal not found' }, 404)
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   try {
+    if (check) return json(await report(db, proposal), 200)
+    if (proposal.creative_status === 'running') return json({ status: 'running' }, 200)
+
     const [{ data: business }, { data: colors }, { data: brand }] = await Promise.all([
       db.from('businesses').select('name, sector').eq('id', proposal.business_id).single(),
       db.from('brand_colors').select('name, hex').eq('business_id', proposal.business_id).order('position'),
       db.from('brand_profiles').select('tone_description, logo_path').eq('business_id', proposal.business_id).maybeSingle(),
     ])
     // The logo as a reference image: raster only (the image model takes no SVG).
-    let logo: Blob | null = null
+    let logo: string | null = null
     if (brand?.logo_path && !brand.logo_path.endsWith('.svg')) {
       const { data } = await db.storage.from('logos').download(brand.logo_path)
-      logo = data ?? null
+      if (data) logo = dataUrl(data.type || 'image/png', new Uint8Array(await data.arrayBuffer()))
     }
     const content = proposal.content as {
       treatment: { name: string; category?: string }
@@ -70,26 +74,50 @@ Deno.serve(async (request) => {
       .filter(Boolean)
       .join('\n')
 
-    const settings = { model: IMAGE_MODEL, prompt, size: '1024x1024', quality: 'high', output_format: 'png' } as const
-    const image = logo
-      ? await openai.images.edit({ ...settings, image: await toFile(logo, 'logo.png', { type: logo.type }) })
-      : await openai.images.generate(settings)
-    const b64 = image.data?.[0]?.b64_json
-    if (!b64) throw new Error('The image model returned no image')
-
-    const path = `${proposal.business_id}/${proposal.id}.png`
-    const bytes = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0))
-    const { error } = await db.storage.from('creatives').upload(path, bytes, { contentType: 'image/png', upsert: true })
-    if (error) throw error
-    await db.from('ad_proposals').update({ creative_path: path }).eq('id', proposal.id)
-
-    const { data: signed } = await db.storage.from('creatives').createSignedUrl(path, 60 * 60)
-    return json({ url: signed?.signedUrl }, 200)
+    const jobId = await startImageJob({ prompt, images: logo ? [logo] : [], action: logo ? 'edit' : 'generate' })
+    await db
+      .from('ad_proposals')
+      .update({ creative_job_id: jobId, creative_status: 'running', creative_error: null })
+      .eq('id', proposal.id)
+    return json({ status: 'running' }, 200)
   } catch (failure) {
     console.error(failure)
     return json({ error: String(failure) }, 500)
   }
 })
+
+interface Proposal {
+  id: string
+  business_id: string
+  creative_job_id: string | null
+  creative_status: string | null
+  creative_path: string | null
+  creative_error: string | null
+}
+
+/** Where the image stands; once the job is done, stores it and returns its address. */
+async function report(db: SupabaseClient, proposal: Proposal) {
+  if (proposal.creative_path) return { status: 'done', url: await signed(db, proposal.creative_path) }
+  if (proposal.creative_status === 'failed') return { status: 'failed', error: proposal.creative_error }
+  if (!proposal.creative_job_id) return { status: 'none' }
+
+  const state = await checkImageJob(proposal.creative_job_id)
+  if (state.status === 'running') return { status: 'running' }
+  if (state.status === 'failed') {
+    await db.from('ad_proposals').update({ creative_status: 'failed', creative_error: state.error }).eq('id', proposal.id)
+    return { status: 'failed', error: state.error }
+  }
+  const path = `${proposal.business_id}/${proposal.id}.png`
+  const { error } = await db.storage.from('creatives').upload(path, state.png, { contentType: 'image/png', upsert: true })
+  if (error) throw error
+  await db.from('ad_proposals').update({ creative_path: path, creative_status: 'done' }).eq('id', proposal.id)
+  return { status: 'done', url: await signed(db, path) }
+}
+
+async function signed(db: SupabaseClient, path: string) {
+  const { data } = await db.storage.from('creatives').createSignedUrl(path, 60 * 60)
+  return data?.signedUrl
+}
 
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
