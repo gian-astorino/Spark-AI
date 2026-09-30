@@ -4,9 +4,10 @@
 // The image runs as an OpenAI background job (see _shared/image-jobs.ts): the
 // app calls "check" every few seconds until it is done.
 //
-// The ad itself, made by gpt-image-2.5: the offer the proposal settled on and
-// the brand board (logo, colours, fonts, pattern) as the reference image. The
-// model writes all the ad's text; the app lays nothing over it.
+// The ad itself, made by gpt-image-2.5 with as much freedom as possible: a
+// short prompt with the offer the proposal settled on, and the brand board
+// (logo, colours, fonts, pattern) attached for the style. The model writes all
+// the ad's text; the app lays nothing over it.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { checkImageJob, dataUrl, startImageJob } from '../_shared/image-jobs.ts'
@@ -48,28 +49,19 @@ Deno.serve(async (request) => {
       const { data } = await db.storage.from('logos').download(reference)
       if (data) image = dataUrl(data.type || 'image/png', new Uint8Array(await data.arrayBuffer()))
     }
-    const { treatment, offer, ad, visual } = proposal.content as {
+    const { treatment, offer } = proposal.content as {
       treatment: { name: string; list_price_eur: number }
-      offer: { discount_percent: number; discounted_price_eur: number; conditions: string; duration_days: number }
-      ad: { headline: string; cta: string }
-      visual: { concept: string; overlay_text: string }
+      offer: { discount_percent: number; discounted_price_eur: number; conditions: string }
     }
 
+    // As short as it gets: the image model decides everything else.
     const prompt = [
       `Create a simple, clean square ad for Instagram and Facebook for ${business?.name ?? 'a business'}, a ${business?.sector || 'beauty'} business in Italy.`,
-      image && reference === brand?.board_path
-        ? "The attached image is the brand board: use its logo exactly as it is, its colours, its fonts and its pattern, so the ad is unmistakably this brand's. Do not copy the board's layout, swatches or labels."
-        : image
-          ? "The attached image is the business's logo: show it exactly as it is, and take the ad's colours from it."
-          : '',
-      `The offer: "${treatment.name}" at ${euro(offer.discounted_price_eur)} instead of ${euro(treatment.list_price_eur)} (-${offer.discount_percent}%), ${offer.conditions}, for ${offer.duration_days} days.`,
-      `Write on the ad, in Italian, spelled exactly like this: the headline "${visual.overlay_text || ad.headline}", the treatment "${treatment.name}", the old price "${euro(treatment.list_price_eur)}" struck through next to the new price "${euro(offer.discounted_price_eur)}", the badge "-${offer.discount_percent}%" and a button "${CTA_LABELS[ad.cta] ?? 'Prenota ora'}". No other text.`,
-      `Art direction: ${visual.concept}`,
-      'Keep it simple: one clear idea, a strong hierarchy (headline, then the price), generous space, sharp and legible type in the brand fonts, premium and uncluttered.',
-      'No before-and-after, no bodies presented as needing correction, no medical procedures or needles.',
+      `Offer: "${treatment.name} a ${euro(offer.discounted_price_eur)} invece di ${euro(treatment.list_price_eur)} (-${offer.discount_percent}%). ${offer.conditions}"`,
+      image ? 'Use the attachments to influence the visual style of the final image.' : '',
     ]
       .filter(Boolean)
-      .join('\n')
+      .join('\n\n')
 
     const jobId = await startImageJob({ prompt, images: image ? [image] : [], action: image ? 'edit' : 'generate', size: '2048x2048' })
     await db
@@ -121,14 +113,6 @@ async function report(db: SupabaseClient, proposal: Proposal) {
 async function signed(db: SupabaseClient, path: string) {
   const { data } = await db.storage.from('creatives').createSignedUrl(path, 60 * 60)
   return data?.signedUrl
-}
-
-const CTA_LABELS: Record<string, string> = {
-  BOOK_NOW: 'Prenota ora',
-  LEARN_MORE: 'Scopri di più',
-  SEND_MESSAGE: 'Scrivici',
-  CALL_NOW: 'Chiamaci',
-  GET_OFFER: "Ottieni l'offerta",
 }
 
 /** 49 → "49 €", 48.5 → "48,50 €", as an Italian would write it. */
