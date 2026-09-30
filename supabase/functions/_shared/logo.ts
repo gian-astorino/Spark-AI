@@ -9,6 +9,9 @@ import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 // the same logo. SVG logos, already sharp at any size, are only centred on a
 // square canvas.
 //
+// Next to the recreation, from the same logo, a brand board: one wide image
+// with the logo, the colours, the fonts and a pattern (startBoard, checkBoard).
+//
 // The recreation runs as an OpenAI background job, started here and checked by
 // the app (checkLogo): no request waits for the image model, and no pixels are
 // decoded in the function (its CPU budget is two seconds).
@@ -60,8 +63,9 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
     await db.storage.from('logos').upload(original, file, { contentType: file.type, upsert: true })
 
     // 1. Colours, from the original.
+    let colors: string[] = []
     try {
-      const colors = isSvg ? svgColors(await file.text()) : await imageColors(db, original)
+      colors = isSvg ? svgColors(await file.text()) : await imageColors(db, original)
       await saveColors(db, businessId, colors)
     } catch (failure) {
       failures.push(`colours: ${String(failure)}`)
@@ -69,6 +73,9 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
 
     if (isSvg) {
       update.logo_path = await squareSvgLogo(db, businessId, await file.text())
+      // The image model takes no SVG: without a picture of the logo, no board.
+      update.board_job_status = 'failed'
+      update.board_error = 'SVG logo: the image model takes no SVG as a reference'
     } else {
       // 2. A larger copy of a thumbnail when its address leads to one, then the recreation job.
       let source = new Uint8Array(await file.arrayBuffer())
@@ -91,11 +98,25 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
         background: 'auto',
       })
       update.logo_job_status = 'running'
+
+      // 3. The brand board, from the same picture of the logo.
+      try {
+        update.board_job_id = await startBoard(db, businessId, dataUrl(type, source), colors)
+        update.board_job_status = 'running'
+        update.board_error = null
+      } catch (failure) {
+        update.board_job_status = 'failed'
+        update.board_error = String(failure).slice(0, 2000)
+      }
     }
   } catch (failure) {
     failures.push(String(failure))
     // No recreation coming: the app stops waiting and shows the original.
     update.logo_job_status = 'failed'
+    if (!update.board_job_status) {
+      update.board_job_status = 'failed'
+      update.board_error = String(failure).slice(0, 2000)
+    }
   }
   await db
     .from('brand_profiles')
@@ -142,6 +163,47 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
   const path = `${businessId}/logo-hd.png`
   await db.storage.from('logos').upload(path, state.png, { contentType: 'image/png', upsert: true })
   await db.from('brand_profiles').update({ logo_path: path, logo_job_status: 'done' }).eq('business_id', businessId)
+  return 'done'
+}
+
+/** Starts the brand board: the logo as the reference, the sector and colours in the prompt. */
+async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[]) {
+  const { data: business } = await db.from('businesses').select('name, sector').eq('id', businessId).maybeSingle()
+  const prompt = [
+    `Design a brand board for ${business?.name ? `"${business.name}", ` : ''}a business in the ${business?.sector || 'beauty'} sector in Italy, built around the attached logo.`,
+    'The board contains only these four elements, laid out cleanly on a calm background with generous white space:',
+    '1. The logo, exactly as attached: the same shapes, lettering and colours, never redrawn or restyled.',
+    `2. The colour palette as swatches${colors.length ? `: ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
+    "3. The fonts: a heading font and a body font that suit the logo and the sector, each shown with its name and a short sample (\"Aa\" and the alphabet). Prefer sans-serif fonts; use a serif only if the logo's own lettering clearly is one.",
+    "4. A pattern made from the logo's mark or its shapes, in the brand colours, shown as a large tile.",
+    'Nothing else: no photographs, mockups, products, people, taglines, slogans, extra words or watermarks. Flat, sharp, professional, like a page of a brand guidelines book.',
+  ].join('\n')
+  return await startImageJob({ prompt, images: [logo], action: 'edit', size: BOARD_SIZE, background: 'opaque' })
+}
+
+// The largest size gpt-image-2.5 makes without going experimental (above 2560x1440).
+const BOARD_SIZE = '2560x1440'
+
+/** Where the brand board stands; once its job is done, stores it next to the logo. */
+export async function checkBoard(db: SupabaseClient, businessId: string): Promise<string> {
+  const { data: brand } = await db
+    .from('brand_profiles')
+    .select('board_job_id, board_job_status')
+    .eq('business_id', businessId)
+    .maybeSingle()
+  if (!brand?.board_job_id || brand.board_job_status !== 'running') return brand?.board_job_status ?? 'none'
+  const state = await checkImageJob(brand.board_job_id)
+  if (state.status === 'running') return 'running'
+  if (state.status === 'failed') {
+    await db
+      .from('brand_profiles')
+      .update({ board_job_status: 'failed', board_error: state.error.slice(0, 2000) })
+      .eq('business_id', businessId)
+    return 'failed'
+  }
+  const path = `${businessId}/branding.png`
+  await db.storage.from('logos').upload(path, state.png, { contentType: 'image/png', upsert: true })
+  await db.from('brand_profiles').update({ board_path: path, board_job_status: 'done' }).eq('business_id', businessId)
   return 'done'
 }
 

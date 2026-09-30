@@ -68,6 +68,10 @@ export interface Profile {
      * turned down (then the original is the logo).
      */
     logoPending?: boolean
+    /** The brand board: logo, colours, fonts and a pattern in one image. */
+    boardUrl?: string
+    /** The board is on its way (with the logo, or after it). */
+    boardPending?: boolean
   }
   photos?: { url: string; caption?: string }[]
   catalog?: CatalogItem[]

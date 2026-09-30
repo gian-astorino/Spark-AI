@@ -65,6 +65,10 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
           logo_job_id: null,
           logo_job_status: null,
           logo_error: null,
+          board_path: null,
+          board_job_id: null,
+          board_job_status: null,
+          board_error: null,
         }
       : {}),
     fonts: brandFonts(branding),

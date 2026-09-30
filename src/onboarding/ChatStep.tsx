@@ -158,9 +158,11 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   }
 
   // While the logo is waiting for its recreation (its job may not even have
-  // started yet), move it on and look again until the new logo is in.
+  // started yet) or the brand board for its image, move them on and look
+  // again until both are in.
+  const imagesPending = !!profile.branding?.logoPending || !!profile.branding?.boardPending
   useEffect(() => {
-    if (!profile.branding?.logoPending) return
+    if (!imagesPending) return
     const timer = setInterval(async () => {
       try {
         await checkLogoJob(await businessId())
@@ -170,8 +172,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
       void refreshProfile()
     }, 5000)
     return () => clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows whether a logo is pending only
-  }, [profile.branding?.logoPending])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows whether an image is pending only
+  }, [imagesPending])
 
   // Once the owner confirms the profile, Spark proposes their first ad by itself.
   useEffect(() => {

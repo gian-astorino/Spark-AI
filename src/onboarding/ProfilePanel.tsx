@@ -207,6 +207,24 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
               </Inline>
             )
           )}
+          {b.boardPending ? (
+            <Stack gap={2}>
+              <ItemDescription>Branding</ItemDescription>
+              <span className="board board-loading">
+                <Spinner />
+                <ItemDescription>Sto creando il branding…</ItemDescription>
+              </span>
+            </Stack>
+          ) : (
+            b.boardUrl && (
+              <Stack gap={2}>
+                <ItemDescription>Branding</ItemDescription>
+                <button type="button" className="logo-button" aria-label="Vedi il branding" onClick={() => onEdit({ kind: 'board' })}>
+                  <img className="board" src={b.boardUrl} alt="Branding" />
+                </button>
+              </Stack>
+            )
+          )}
           <Editable label="Modifica branding" onClick={edit}>
             <Stack gap={4}>
               {b.colors.length > 0 && (

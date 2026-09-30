@@ -15,6 +15,8 @@ export interface ImageJob {
   images?: string[]
   action: 'generate' | 'edit'
   background?: 'transparent' | 'opaque' | 'auto'
+  /** WIDTHxHEIGHT, multiples of 16; 1024x1024 when left out. */
+  size?: string
   inputFidelity?: 'high' | 'low'
 }
 
@@ -39,7 +41,7 @@ export async function startImageJob(job: ImageJob): Promise<string> {
         type: 'image_generation',
         model: IMAGE_MODEL,
         action: job.action,
-        size: '1024x1024',
+        size: job.size ?? '1024x1024',
         quality: 'high',
         output_format: 'png',
         background: job.background ?? 'auto',

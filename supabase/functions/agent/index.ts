@@ -9,7 +9,7 @@
 import OpenAI from 'openai'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { runTool, TOOLS, type ToolContext } from '../_shared/profile-tools.ts'
-import { checkLogo } from '../_shared/logo.ts'
+import { checkBoard, checkLogo } from '../_shared/logo.ts'
 import { snapshot } from '../_shared/snapshot.ts'
 
 const MODEL = 'gpt-5.5'
@@ -81,7 +81,10 @@ Deno.serve(async (request) => {
 async function turn(db: SupabaseClient, businessId: string, text: string, fromOwner: boolean, files: string[]) {
   const conversation = await conversationFor(db, businessId)
   // A logo recreation still under way moves on with every turn.
-  await checkLogo(db, businessId).catch((failure) => console.error('Logo check failed', failure))
+  await Promise.all([
+    checkLogo(db, businessId).catch((failure) => console.error('Logo check failed', failure)),
+    checkBoard(db, businessId).catch((failure) => console.error('Board check failed', failure)),
+  ])
   await db.from('messages').insert({
     conversation_id: conversation.id,
     role: 'user',

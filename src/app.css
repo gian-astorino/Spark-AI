@@ -741,3 +741,22 @@
   place-items: center;
   background: var(--muted);
 }
+
+/* The brand board: a wide image, full width in the panel. */
+.board {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-lg-spark);
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+
+.board-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}

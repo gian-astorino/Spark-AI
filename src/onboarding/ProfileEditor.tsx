@@ -42,6 +42,7 @@ export type Editing =
   | { kind: 'catalog'; item?: CatalogItem }
   | { kind: 'calendar' }
   | { kind: 'logo' }
+  | { kind: 'board' }
 
 const WEEKDAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 const BRAND_COLOR_NAMES = ['Primary', 'Secondary', 'Accent']
@@ -65,6 +66,8 @@ export function ProfileEditor({
         <DialogContent>
           {editing.kind === 'logo' ? (
             <LogoView url={profile.branding?.logoUrl} />
+          ) : editing.kind === 'board' ? (
+            <BoardView url={profile.branding?.boardUrl} />
           ) : (
             <Form key={formKey(editing)} editing={editing} profile={profile} businessId={businessId} onDone={onSaved} />
           )}
@@ -92,6 +95,18 @@ function LogoView({ url }: { url?: string }) {
   )
 }
 
+function BoardView({ url }: { url?: string }) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Branding</DialogTitle>
+        <DialogDescription>Logo, colori, font e pattern del tuo brand. Si aggiorna quando cambi il logo.</DialogDescription>
+      </DialogHeader>
+      {url && <img className="logo-large" src={url} alt="Branding" />}
+    </>
+  )
+}
+
 /** One form per kind; each keeps its own draft and saves or deletes as a whole. */
 function Form({
   editing,
@@ -99,7 +114,7 @@ function Form({
   businessId,
   onDone,
 }: {
-  editing: Exclude<Editing, { kind: 'logo' }>
+  editing: Exclude<Editing, { kind: 'logo' } | { kind: 'board' }>
   profile: Profile
   businessId: () => Promise<string>
   onDone: () => void
