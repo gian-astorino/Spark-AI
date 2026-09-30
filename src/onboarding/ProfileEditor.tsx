@@ -90,7 +90,11 @@ function LogoView({ url }: { url?: string }) {
         <DialogTitle>Logo</DialogTitle>
         <DialogDescription>Per cambiarlo, allega il nuovo logo in chat.</DialogDescription>
       </DialogHeader>
-      {url && <img className="logo-large" src={url} alt="Logo" />}
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" title="Apri a piena risoluzione">
+          <img className="image-large logo-large" src={url} alt="Logo" />
+        </a>
+      )}
     </>
   )
 }
@@ -102,7 +106,11 @@ function BoardView({ url }: { url?: string }) {
         <DialogTitle>Branding</DialogTitle>
         <DialogDescription>Logo, colori, font e pattern del tuo brand. Si aggiorna quando cambi il logo.</DialogDescription>
       </DialogHeader>
-      {url && <img className="logo-large" src={url} alt="Branding" />}
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" title="Apri a piena risoluzione">
+          <img className="image-large" src={url} alt="Branding" />
+        </a>
+      )}
     </>
   )
 }

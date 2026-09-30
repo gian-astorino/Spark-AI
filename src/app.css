@@ -369,13 +369,33 @@
   cursor: zoom-in;
 }
 
-.logo-large {
+/* The dialog the logo and the board open in: as wide as the screen allows
+   (the DS dialog is sized for forms and takes no class of ours). */
+[data-slot='dialog-content']:has(.image-large) {
+  width: min(92vw, 1400px);
+  max-width: none;
+}
+
+.image-large {
   display: block;
   width: 100%;
-  max-height: 60vh;
+  height: auto;
+  max-height: 78vh;
   object-fit: contain;
   border-radius: var(--radius-xl-spark);
   background: var(--muted);
+  cursor: zoom-in;
+}
+
+/* A square logo: as tall as the screen allows, not as wide as the dialog. */
+.logo-large {
+  width: auto;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+[data-slot='dialog-content']:has(.logo-large) {
+  width: min(92vw, 78vh + 3rem);
 }
 
 .tone {
