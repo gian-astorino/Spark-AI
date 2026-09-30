@@ -125,11 +125,15 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
   }
 
   const { data: original } = await db.storage.from('logos').download(brand.logo_path)
-  const same = original ? await sameLogo(new Uint8Array(await original.arrayBuffer()), state.png) : false
-  if (!same) {
+  const verdict = original
+    ? await sameLogo(new Uint8Array(await original.arrayBuffer()), state.png)
+    : { same: false, difference: 'the original could not be read' }
+  if (!verdict.same) {
+    // Kept for a look: what the model made, and why it was turned down.
+    await db.storage.from('logos').upload(`${businessId}/logo-rejected.png`, state.png, { contentType: 'image/png', upsert: true })
     await db
       .from('brand_profiles')
-      .update({ logo_job_status: 'rejected', logo_error: 'The recreated logo differed from the original: the original is kept' })
+      .update({ logo_job_status: 'rejected', logo_error: `Recreation turned down, original kept: ${verdict.difference}`.slice(0, 2000) })
       .eq('business_id', businessId)
     return 'rejected'
   }
@@ -169,7 +173,7 @@ const REDRAW = [
 ].join(' ')
 
 /** Whether the recreated logo is still the same logo, as the vision model sees it. */
-async function sameLogo(original: Uint8Array, candidate: Uint8Array): Promise<boolean> {
+async function sameLogo(original: Uint8Array, candidate: Uint8Array): Promise<{ same: boolean; difference: string }> {
   const response = await openai.responses.create({
     model: VISION_MODEL,
     reasoning: { effort: 'low' },
@@ -183,7 +187,7 @@ async function sameLogo(original: Uint8Array, candidate: Uint8Array): Promise<bo
           { type: 'input_image', image_url: dataUrl('image/png', candidate), detail: 'high' },
           {
             type: 'input_text',
-            text: 'Is image 2 the same logo as image 1? It must have the same lettering (every letter), the same shapes, the same colours and the same background colour; only size, sharpness and the amount of empty space around it may differ. An added outline, shadow, changed letter or changed background means no.',
+            text: 'Is image 2 the same logo as image 1, faithfully recreated? It must read the same words spelled the same, keep the same symbol or mark, the same colours and the same background colour. Differences that come with a recreation are fine: sharper edges, slightly different line weight or letter spacing, more or less empty space around it. Answer no only if it is a different logo: a changed or misspelled word, a different or missing symbol, different colours, a different background, or added outlines, shadows or decorations.',
           },
         ],
       },
@@ -202,9 +206,7 @@ async function sameLogo(original: Uint8Array, candidate: Uint8Array): Promise<bo
       },
     },
   })
-  const verdict = JSON.parse(response.output_text || '{"same":false}') as { same: boolean; difference?: string }
-  if (!verdict.same) console.warn('Logo check:', verdict.difference)
-  return verdict.same
+  return JSON.parse(response.output_text || '{"same":false,"difference":"no answer"}') as { same: boolean; difference: string }
 }
 
 /**

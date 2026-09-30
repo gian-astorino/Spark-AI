@@ -23,7 +23,11 @@ Deno.serve(async (request) => {
   if (typeof business_id !== 'string') return json({ error: 'business_id is required' }, 400)
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
+  const token = Deno.env.get('LOGO_TRIGGER_TOKEN')
+  const internal = !!token && request.headers.get('x-logo-token') === token
+
   if (check) {
+    if (internal) return json({ status: await checkLogo(db, business_id) }, 200)
     // The owner's own token: RLS answers whether the business is theirs.
     const asUser = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } },
@@ -38,9 +42,18 @@ Deno.serve(async (request) => {
     }
   }
 
-  const token = Deno.env.get('LOGO_TRIGGER_TOKEN')
-  if (!token || request.headers.get('x-logo-token') !== token) return json({ error: 'Forbidden' }, 403)
-  EdgeRuntime.waitUntil(refreshLogo(db, business_id).catch((failure) => console.error(failure)))
+  if (!internal) return json({ error: 'Forbidden' }, 403)
+  // Starts the recreation, then follows it for as long as this function may
+  // run; if the image takes longer, the agent's turns and the app move it on.
+  EdgeRuntime.waitUntil(
+    (async () => {
+      await refreshLogo(db, business_id)
+      for (let attempt = 0; attempt < 12; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 10_000))
+        if ((await checkLogo(db, business_id)) !== 'running') return
+      }
+    })().catch((failure) => console.error(failure)),
+  )
   return json({ ok: true }, 202)
 })
 
