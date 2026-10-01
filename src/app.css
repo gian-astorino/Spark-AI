@@ -787,7 +787,6 @@
 
 .platform-logos > [data-slot='item-media'] {
   position: relative;
-  border-radius: var(--radius-md-spark); /* 8px, as in Figma; the DS tile has 12px */
 }
 
 /* The border is drawn over the image, inside its edge, not around it. */
