@@ -1,6 +1,22 @@
+import { useRef } from 'react'
+
 // Hugeicons' LibraryBig, drawn here so its right book can move: it starts
 // upright and falls to lean on the others, as in the original icon. The
 // geometry is the icon's own; only the right book is wrapped in a group.
+// The first fall is CSS (.falling-book); on hover or click the book stands up
+// again and falls once more.
+
+const STAND_UP: Keyframe[] = [{ transform: 'rotate(0deg)' }, { transform: 'rotate(15deg)' }]
+
+// The same fall as @keyframes book-fall in app.css.
+const FALL: Keyframe[] = [
+  { offset: 0, transform: 'rotate(15deg)', easing: 'cubic-bezier(0.55, 0, 1, 0.45)' },
+  { offset: 0.6, transform: 'rotate(0deg)', easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)' },
+  { offset: 0.75, transform: 'rotate(2.5deg)', easing: 'cubic-bezier(0.6, 0, 0.8, 0.4)' },
+  { offset: 0.88, transform: 'rotate(0deg)', easing: 'ease-out' },
+  { offset: 0.94, transform: 'rotate(0.6deg)' },
+  { offset: 1, transform: 'rotate(0deg)' },
+]
 
 const stroke = {
   stroke: 'currentColor',
@@ -11,8 +27,36 @@ const stroke = {
 } as const
 
 export function FallingBooksIcon({ size = 40 }: { size?: number }) {
+  const book = useRef<SVGGElement>(null)
+  const busy = useRef(false)
+
+  async function fallAgain() {
+    const element = book.current
+    if (!element || busy.current || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    // Not while the first fall is still under way.
+    if (element.getAnimations().some((animation) => animation.playState === 'running')) return
+    busy.current = true
+    try {
+      await element.animate(STAND_UP, { duration: 350, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' }).finished
+      const fall = element.animate(FALL, { duration: 1200, fill: 'forwards' })
+      await fall.finished
+      // Back to rest: the CSS animation already ends at 0deg.
+      for (const animation of element.getAnimations()) if (!(animation instanceof CSSAnimation)) animation.cancel()
+    } finally {
+      busy.current = false
+    }
+  }
+
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="falling-books">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="falling-books"
+      onMouseEnter={() => void fallAgain()}
+      onClick={() => void fallAgain()}
+    >
       <path
         {...stroke}
         d="M2.66736 6.38C2.66736 5.44539 2.66736 4.97808 2.86832 4.63C2.99997 4.40198 3.18933 4.21262 3.41736 4.08097C3.76543 3.88 4.23274 3.88 5.16736 3.88C6.10197 3.88 6.56928 3.88 6.91736 4.08097C7.14539 4.21262 7.33474 4.40198 7.4664 4.63C7.66736 4.97808 7.66736 5.44539 7.66736 6.38V17.6199C7.66736 18.5545 7.66736 19.0218 7.4664 19.3699C7.33474 19.5979 7.14539 19.7873 6.91736 19.9189C6.56928 20.1199 6.10197 20.1199 5.16736 20.1199C4.23274 20.1199 3.76543 20.1199 3.41736 19.9189C3.18933 19.7873 2.99997 19.5979 2.86832 19.3699C2.66736 19.0218 2.66736 18.5545 2.66736 17.6199V6.38Z"
@@ -24,7 +68,7 @@ export function FallingBooksIcon({ size = 40 }: { size?: number }) {
         d="M7.66736 6.38C7.66736 5.44539 7.66736 4.97808 7.86832 4.63C7.99997 4.40198 8.18933 4.21262 8.41736 4.08097C8.76543 3.88 9.23274 3.88 10.1674 3.88C11.102 3.88 11.5693 3.88 11.9174 4.08097C12.1454 4.21262 12.3347 4.40198 12.4664 4.63C12.6674 4.97808 12.6674 5.44539 12.6674 6.38V17.6199C12.6674 18.5545 12.6674 19.0218 12.4664 19.3699C12.3347 19.5979 12.1454 19.7873 11.9174 19.9189C11.5693 20.1199 11.102 20.1199 10.1674 20.1199C9.23274 20.1199 8.76543 20.1199 8.41736 19.9189C8.18933 19.7873 7.99997 19.5979 7.86832 19.3699C7.66736 19.0218 7.66736 18.5545 7.66736 17.6199V6.38Z"
       />
       {/* The right book: it pivots on its bottom-left corner. */}
-      <g className="falling-book">
+      <g ref={book} className="falling-book">
         <path {...stroke} d="M13.9916 9.71545L18.8212 8.40196" />
         <path
           {...stroke}
