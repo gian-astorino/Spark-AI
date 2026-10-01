@@ -39,11 +39,6 @@
   letter-spacing: -0.01em;
 }
 
-.step-count {
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
 /* ---------- Headings (the DS has no type scale yet) ---------- */
 
 .page-heading h1 {

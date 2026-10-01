@@ -340,7 +340,6 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                 Prima inserzione
               </Button>
             )}
-            <span className="step-count">Passo 2 di 2</span>
             <span className="profile-toggle">
               <Sheet>
                 <SheetTrigger asChild>

@@ -96,7 +96,6 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
     <div className="welcome">
       <header className="welcome-top">
         <SparkMark withName />
-        <span className="step-count">Passo 1 di 2</span>
       </header>
 
       <form className="welcome-body" onSubmit={submit}>
