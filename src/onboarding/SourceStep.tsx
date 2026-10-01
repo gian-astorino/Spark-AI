@@ -131,8 +131,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
               <ItemTitle>Suggerito per il tuo settore</ItemTitle>
               {/* FieldDescription, not ItemDescription: the DS clamps that one to two lines. */}
               <FieldDescription>
-                Inserisci il tuo link di Fresha o Treatwell. Pipelean potrà sincronizzare il tuo catalogo e tenerlo
-                aggiornato.
+                Inserisci il tuo link di Fresha o Treatwell. Spark sincronizzerà il tuo catalogo.
               </FieldDescription>
             </ItemContent>
           </Item>
