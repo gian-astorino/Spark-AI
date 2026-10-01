@@ -41,6 +41,10 @@
 
 /* ---------- Headings (the DS has no type scale yet) ---------- */
 
+.page-heading {
+  text-align: center;
+}
+
 .page-heading h1 {
   margin: 0;
   font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
