@@ -370,7 +370,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                   <MessageContent>
                     {entry.files && entry.files.length > 0 && <SentFiles files={entry.files} />}
                     {entry.text && (
-                      <Bubble align="end">
+                      <Bubble variant="tinted" align="end">
                         <BubbleContent>{entry.text}</BubbleContent>
                       </Bubble>
                     )}
