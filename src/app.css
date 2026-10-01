@@ -777,3 +777,18 @@
     animation: none;
   }
 }
+
+/* The platform logos of the home's suggestion card, as in Figma: a 5% border
+   and overlapping by 8px (the DS's ItemMedia has no stacked variant yet). */
+.platform-logos {
+  display: flex;
+}
+
+.platform-logos > [data-slot='item-media'] {
+  box-sizing: border-box;
+  border: 1px solid color-mix(in oklch, var(--foreground) 5%, transparent);
+}
+
+.platform-logos > [data-slot='item-media'] + [data-slot='item-media'] {
+  margin-left: -0.5rem;
+}

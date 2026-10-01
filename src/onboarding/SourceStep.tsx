@@ -118,12 +118,14 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
           {/* Booking platforms: the surest source of the catalogue. */}
           <Item variant="muted">
             <ItemMedia>
-              <ItemMedia variant="image">
-                <img src={`${import.meta.env.BASE_URL}platforms/fresha.png`} alt="Fresha" />
-              </ItemMedia>
-              <ItemMedia variant="image">
-                <img src={`${import.meta.env.BASE_URL}platforms/treatwell.png`} alt="Treatwell" />
-              </ItemMedia>
+              <div className="platform-logos">
+                <ItemMedia variant="image">
+                  <img src={`${import.meta.env.BASE_URL}platforms/fresha.png`} alt="Fresha" />
+                </ItemMedia>
+                <ItemMedia variant="image">
+                  <img src={`${import.meta.env.BASE_URL}platforms/treatwell.png`} alt="Treatwell" />
+                </ItemMedia>
+              </div>
             </ItemMedia>
             <ItemContent>
               <ItemTitle>Suggerito per il tuo settore</ItemTitle>
