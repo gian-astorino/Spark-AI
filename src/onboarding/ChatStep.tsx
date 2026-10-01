@@ -12,7 +12,6 @@ import {
   Button,
   Inline,
   Message,
-  MessageAvatar,
   MessageContent,
   MessageGroup,
   Sheet,
@@ -378,14 +377,11 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                 </Message>
               ) : (
                 <Message key={entry.id}>
-                  <MessageAvatar>
-                    <SparkMark />
-                  </MessageAvatar>
                   <MessageContent>
                     {entry.from === 'proposal' ? (
                       entry.proposal ? (
                         <Stack gap={3}>
-                          <Bubble variant="muted">
+                          <Bubble variant="ghost">
                             <BubbleContent>
                               Ecco una proposta per la tua prima inserzione, costruita sul tuo listino. Se non ti convince,
                               rigenerala.
@@ -400,7 +396,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                           />
                         </Stack>
                       ) : (
-                        <Bubble variant="muted">
+                        <Bubble variant="ghost">
                           <BubbleContent>
                             {entry.failed ? (
                               'Non sono riuscito a preparare la proposta. Riprova con “Prima inserzione”.'
@@ -417,7 +413,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                       <ImportMarker {...jobs[entry.job]} onSkip={() => skip(entry.job)} />
                     ) : (
                       <Stack gap={3}>
-                        <Bubble variant="muted">
+                        <Bubble variant="ghost">
                           <BubbleContent>
                             <Markdown>{entry.text}</Markdown>
                           </BubbleContent>
@@ -439,11 +435,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
             )}
             {thinking && (
               <Message>
-                <MessageAvatar>
-                  <SparkMark />
-                </MessageAvatar>
                 <MessageContent>
-                  <Bubble variant="muted">
+                  <Bubble variant="ghost">
                     <BubbleContent>
                       <Spinner aria-label="Spark sta scrivendo" />
                     </BubbleContent>
