@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Avatar,
-  AvatarGroup,
-  AvatarImage,
   Button,
   ButtonGroup,
   ButtonGroupText,
@@ -11,7 +8,6 @@ import {
   Input,
   Item,
   ItemContent,
-  ItemDescription,
   ItemMedia,
   ItemTitle,
   RadioGroup,
@@ -122,21 +118,20 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
           {/* Booking platforms: the surest source of the catalogue. */}
           <Item variant="muted">
             <ItemMedia>
-              <AvatarGroup>
-                <Avatar size="lg">
-                  <AvatarImage src={`${import.meta.env.BASE_URL}platforms/fresha.png`} alt="Fresha" />
-                </Avatar>
-                <Avatar size="lg">
-                  <AvatarImage src={`${import.meta.env.BASE_URL}platforms/treatwell.png`} alt="Treatwell" />
-                </Avatar>
-              </AvatarGroup>
+              <ItemMedia variant="image">
+                <img src={`${import.meta.env.BASE_URL}platforms/fresha.png`} alt="Fresha" />
+              </ItemMedia>
+              <ItemMedia variant="image">
+                <img src={`${import.meta.env.BASE_URL}platforms/treatwell.png`} alt="Treatwell" />
+              </ItemMedia>
             </ItemMedia>
             <ItemContent>
               <ItemTitle>Suggerito per il tuo settore</ItemTitle>
-              <ItemDescription>
+              {/* FieldDescription, not ItemDescription: the DS clamps that one to two lines. */}
+              <FieldDescription>
                 Inserisci il tuo link di Fresha o Treatwell. Pipelean potrà sincronizzare il tuo catalogo e tenerlo
                 aggiornato.
-              </ItemDescription>
+              </FieldDescription>
             </ItemContent>
           </Item>
 
