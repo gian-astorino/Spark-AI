@@ -471,13 +471,8 @@
   transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
-.choice-card:not([data-disabled]):hover {
-  background: color-mix(in oklch, var(--input) 40%, transparent);
-}
-
-.choice-card[data-selected='true'] {
-  background: color-mix(in oklch, var(--input) 30%, transparent);
-}
+/* No grey fill, selected or hovered: the radio marks the choice (until the
+   design system's own choice card arrives). */
 
 .choice-card:has([role='radio']:focus-visible) {
   border-color: var(--ring);
