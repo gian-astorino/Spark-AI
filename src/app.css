@@ -111,25 +111,17 @@
 
 /* ---------- Step 2: chat + profile ---------- */
 
-/* Two rounded columns on a light grey, 8px from the edges and apart. */
+/* Two plain panels, side by side, divided by a line. */
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
   height: 100dvh;
-  padding: 0.5rem;
-  box-sizing: border-box;
-  background: var(--muted);
 }
 
 .chat {
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg-spark); /* 12px */
-  background: var(--background);
-  overflow: hidden;
 }
 
 .chat-header {
@@ -151,9 +143,7 @@
 .profile-panel {
   display: none;
   overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg-spark); /* 12px */
-  background: var(--background);
+  border-left: 1px solid var(--border);
 }
 
 .sheet-body {
