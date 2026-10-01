@@ -151,15 +151,22 @@
 }
 
 .profile-head {
-  padding: 1.25rem 1.5rem;
+  /* Dividers inset from the panel's edges: the side space is a margin, not padding. */
+  margin: 0 1.5rem;
+  padding: 1.25rem 0;
   border-bottom: 1px solid var(--border);
 }
 
 .profile-section {
   display: grid;
   gap: 0.875rem;
-  padding: 1.25rem 1.5rem;
+  margin: 0 1.5rem;
+  padding: 1.25rem 0;
   border-bottom: 1px solid var(--border);
+}
+
+.profile-section:last-child {
+  border-bottom: 0;
 }
 
 .profile-section[data-state='empty'] {
