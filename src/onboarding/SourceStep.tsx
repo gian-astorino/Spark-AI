@@ -102,7 +102,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
           <Stack gap={4} align="center">
-            <FallingBooksIcon size={40} />
+            <FallingBooksIcon size={48} />
             <div className="page-heading">
               <h1>Conosciamo la tua attività</h1>
               <p>Spark impara da quello che hai già online. Scegli da dove partire.</p>

@@ -26,7 +26,7 @@ const stroke = {
   fill: 'none',
 } as const
 
-export function FallingBooksIcon({ size = 40 }: { size?: number }) {
+export function FallingBooksIcon({ size = 48 }: { size?: number }) {
   const book = useRef<SVGGElement>(null)
   const busy = useRef(false)
 
