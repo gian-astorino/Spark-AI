@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  Avatar,
+  AvatarGroup,
+  AvatarImage,
   Button,
   ButtonGroup,
   ButtonGroupText,
   FieldDescription,
   FieldTitle,
   Input,
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
   RadioGroup,
   RadioGroupItem,
   Stack,
@@ -110,6 +118,27 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
               ))}
             </Stack>
           </RadioGroup>
+
+          {/* Booking platforms: the surest source of the catalogue. */}
+          <Item variant="muted">
+            <ItemMedia>
+              <AvatarGroup>
+                <Avatar size="lg">
+                  <AvatarImage src={`${import.meta.env.BASE_URL}platforms/fresha.png`} alt="Fresha" />
+                </Avatar>
+                <Avatar size="lg">
+                  <AvatarImage src={`${import.meta.env.BASE_URL}platforms/treatwell.png`} alt="Treatwell" />
+                </Avatar>
+              </AvatarGroup>
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>Suggerito per il tuo settore</ItemTitle>
+              <ItemDescription>
+                Inserisci il tuo link di Fresha o Treatwell. Pipelean potrà sincronizzare il tuo catalogo e tenerlo
+                aggiornato.
+              </ItemDescription>
+            </ItemContent>
+          </Item>
 
           <div className="stretch welcome-action">
             <Button type="submit" size="lg" disabled={!canContinue}>
