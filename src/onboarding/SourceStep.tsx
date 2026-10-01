@@ -84,8 +84,8 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
           <Stack gap={4} align="center">
             <FallingBooksIcon size={48} />
             <div className="page-heading">
-              <h1>Conosciamo la tua attività</h1>
-              <p>Spark impara da quello che hai già online. Scegli da dove partire.</p>
+              <h1>Contesto</h1>
+              <p>Lascia che l'AI recuperi le informazioni sulla tua attività e sul tuo catalogo.</p>
             </div>
           </Stack>
 
