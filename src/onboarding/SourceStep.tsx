@@ -10,8 +10,9 @@ import {
   RadioGroupItem,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { Globe02Icon, InstagramIcon, Chatting01Icon, LibraryBigIcon } from '@hugeicons/core-free-icons'
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
+import { Globe02Icon, InstagramIcon, Chatting01Icon } from '@hugeicons/core-free-icons'
+import type { IconSvgElement } from '@hugeicons/react'
+import { FallingBooksIcon } from './FallingBooksIcon.tsx'
 import { Icon } from './Icon.tsx'
 import { SparkMark } from './SparkMark.tsx'
 import type { ImportRequest, Source } from './types.ts'
@@ -101,7 +102,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
           <Stack gap={4} align="center">
-            <HugeiconsIcon icon={LibraryBigIcon} size={40} strokeWidth={1.5} aria-hidden />
+            <FallingBooksIcon size={40} />
             <div className="page-heading">
               <h1>Conosciamo la tua attività</h1>
               <p>Spark impara da quello che hai già online. Scegli da dove partire.</p>

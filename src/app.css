@@ -752,3 +752,41 @@
   justify-content: center;
   gap: 0.5rem;
 }
+
+/* The source step's icon: the right book stands, then falls onto the others
+   and settles with a small bounce. Once, on arrival. */
+.falling-book {
+  transform-box: view-box;
+  transform-origin: 17.1px 19.95px;
+  animation: book-fall 1.2s cubic-bezier(0.55, 0, 1, 0.45) 0.3s both;
+}
+
+@keyframes book-fall {
+  0% {
+    transform: rotate(15deg);
+  }
+  60% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  75% {
+    transform: rotate(2.5deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+  }
+  88% {
+    transform: rotate(0deg);
+    animation-timing-function: ease-out;
+  }
+  94% {
+    transform: rotate(0.6deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .falling-book {
+    animation: none;
+  }
+}
