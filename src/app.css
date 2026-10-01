@@ -785,8 +785,17 @@
 }
 
 .platform-logos > [data-slot='item-media'] {
-  box-sizing: border-box;
+  position: relative;
+}
+
+/* The border is drawn over the image, inside its edge, not around it. */
+.platform-logos > [data-slot='item-media']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   border: 1px solid color-mix(in oklch, var(--foreground) 5%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .platform-logos > [data-slot='item-media'] + [data-slot='item-media'] {
