@@ -10,7 +10,7 @@ import {
   RadioGroupItem,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { Globe02Icon, InstagramIcon, Chatting01Icon } from '@hugeicons/core-free-icons'
+import { Globe02Icon, Chatting01Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { FallingBooksIcon } from './FallingBooksIcon.tsx'
 import { Icon } from './Icon.tsx'
@@ -19,14 +19,12 @@ import type { ImportRequest, Source } from './types.ts'
 
 const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement; disabled?: boolean }[] = [
   { value: 'website', title: 'Il mio sito', description: 'Importa dal tuo sito', icon: Globe02Icon },
-  { value: 'instagram', title: 'Instagram', description: 'Presto disponibile', icon: InstagramIcon, disabled: true },
   { value: 'none', title: 'Non ho un sito', description: 'Parti da una breve chat', icon: Chatting01Icon },
 ]
 
 export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest) => void }) {
   const [source, setSource] = useState<Source>('website')
   const [website, setWebsite] = useState('')
-  const [handle, setHandle] = useState('')
   const inputs = useRef<Partial<Record<Source, HTMLInputElement | null>>>({})
 
   // The field of the chosen option gets the focus once it starts opening.
@@ -34,12 +32,8 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
     inputs.current[source]?.focus({ preventScroll: true })
   }, [source])
 
-  const target =
-    source === 'website' && website.trim()
-      ? `https://${website.trim()}`
-      : source === 'instagram'
-        ? handle.trim()
-        : ''
+  // Instagram is set aside for now: the options are the site or a chat.
+  const target = source === 'website' && website.trim() ? `https://${website.trim()}` : ''
   const canContinue = source === 'none' || target.length > 0
 
   function submit(event: React.FormEvent) {
@@ -55,37 +49,23 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
   function detail(value: Source) {
     if (value === 'none') return null
     const open = value === source
-    const field =
-      value === 'website' ? (
-        <ButtonGroup aria-label="Indirizzo del sito">
-          <ButtonGroupText>https://</ButtonGroupText>
-          <Input
-            ref={(element) => {
-              inputs.current.website = element
-            }}
-            aria-label="Indirizzo del sito"
-            inputMode="url"
-            autoComplete="url"
-            placeholder="tuaattivita.it"
-            value={website}
-            // Pasting a full URL keeps only what comes after the fixed prefix.
-            onChange={(event) => setWebsite(event.target.value.replace(/^\s*https?:\/\//i, ''))}
-          />
-        </ButtonGroup>
-      ) : (
-        <ButtonGroup aria-label="Profilo Instagram">
-          <ButtonGroupText>@</ButtonGroupText>
-          <Input
-            ref={(element) => {
-              inputs.current.instagram = element
-            }}
-            aria-label="Profilo Instagram"
-            placeholder="tuaattivita"
-            value={handle}
-            onChange={(event) => setHandle(event.target.value.replace(/^\s*@/, ''))}
-          />
-        </ButtonGroup>
-      )
+    const field = (
+      <ButtonGroup aria-label="Indirizzo del sito">
+        <ButtonGroupText>https://</ButtonGroupText>
+        <Input
+          ref={(element) => {
+            inputs.current.website = element
+          }}
+          aria-label="Indirizzo del sito"
+          inputMode="url"
+          autoComplete="url"
+          placeholder="tuaattivita.it"
+          value={website}
+          // Pasting a full URL keeps only what comes after the fixed prefix.
+          onChange={(event) => setWebsite(event.target.value.replace(/^\s*https?:\/\//i, ''))}
+        />
+      </ButtonGroup>
+    )
     return (
       <div className="reveal" data-open={open} inert={!open}>
         <div className="reveal-inner">{field}</div>
@@ -144,7 +124,6 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
         </Stack>
       </form>
 
-      <footer className="welcome-note">Potrai modificare tutto in seguito.</footer>
     </div>
   )
 }
