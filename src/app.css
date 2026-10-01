@@ -602,6 +602,22 @@
   color: var(--muted-foreground);
 }
 
+/* While empty, the placeholder stays on one line: wrapped, it made the
+   one-line field scroll and show a scrollbar on narrow screens. */
+.composer-input:placeholder-shown {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Under 16px, iOS Safari zooms into a field on focus and the page spills
+   out sideways. */
+@media (max-width: 639px) {
+  .composer-input {
+    font-size: 1rem;
+  }
+}
+
 /* ---------- First-ad proposal: the ad as it would look in a feed ---------- */
 
 .ad-card {
