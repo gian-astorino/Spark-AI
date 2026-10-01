@@ -173,8 +173,8 @@ importers:
         specifier: ^1.1.10
         version: 1.1.10(react@19.3.0)
       '@skyground-media/pipelean-design-system':
-        specifier: file:vendor/skyground-media-pipelean-design-system-0.0.0.tgz
-        version: file:vendor/skyground-media-pipelean-design-system-0.0.0.tgz(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: 0.1.0
+        version: 0.1.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@supabase/supabase-js':
         specifier: ^2.117.2
         version: 2.117.2
@@ -1152,9 +1152,8 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@skyground-media/pipelean-design-system@file:vendor/skyground-media-pipelean-design-system-0.0.0.tgz':
-    resolution: {integrity: sha512-lYDL8HB5O9syolsvRtC2yJgpkVD/z1JsI1vqqPGddWasOzDU2q/KozBjIxbId7/t+KH/ScNANwXN6VJ3cZgnYg==, tarball: file:vendor/skyground-media-pipelean-design-system-0.0.0.tgz}
-    version: 0.0.0
+  '@skyground-media/pipelean-design-system@0.1.0':
+    resolution: {integrity: sha512-VZd2eHaUUoOj0+0Wvq2u4DyXk0tQpCaZg2b6RVz07Y1UonhqkMwc8A9/j28avRWeLMJg9pk4ei6Q2m6wCcpJDA==, tarball: https://npm.pkg.github.com/download/@skyground-media/pipelean-design-system/0.1.0/fd5339e4836f7091c35e870e34976f85a7db9e11}
     peerDependencies:
       react: ^18.2.0 || ^19.0.0
       react-dom: ^18.2.0 || ^19.0.0
@@ -2680,7 +2679,7 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@skyground-media/pipelean-design-system@file:vendor/skyground-media-pipelean-design-system-0.0.0.tgz(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@skyground-media/pipelean-design-system@0.1.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@hugeicons/core-free-icons': 4.3.5
       '@hugeicons/react': 1.1.10(react@19.3.0)

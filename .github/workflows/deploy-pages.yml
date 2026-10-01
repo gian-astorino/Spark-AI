@@ -33,7 +33,13 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # The design system is a private package on GitHub Packages: a read:packages
+      # token, kept in the repo's secrets (this repo is outside Skyground-Media).
+      # pnpm 12 expands ${NODE_AUTH_TOKEN} only in the user's ~/.npmrc, not the project's.
+      - run: echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> ~/.npmrc
       - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - run: pnpm build
         env:
