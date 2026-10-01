@@ -53,7 +53,6 @@ import { ProfileEditor, type Editing } from './ProfileEditor.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
 import { hasSection, type Profile, type Section } from './profile.ts'
 import { EVENTS, WAITING, findLink } from './script.ts'
-import { SparkMark } from './SparkMark.tsx'
 import { displayUrl, type ImportRequest } from './types.ts'
 
 /** A file picked in the composer, before or while it is sent. */
@@ -328,12 +327,9 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
     <div className="workspace">
       <div className="chat">
         <header className="chat-header">
-          <Inline gap={2} align="center">
-            <Button variant="ghost" size="icon-sm" aria-label="Indietro" onClick={onBack}>
-              <Icon icon={ArrowLeft02Icon} />
-            </Button>
-            <SparkMark withName />
-          </Inline>
+          <Button variant="ghost" size="icon-sm" aria-label="Indietro" onClick={onBack}>
+            <Icon icon={ArrowLeft02Icon} />
+          </Button>
           <Inline gap={3} align="center">
             {profile.catalog?.some((item) => item.priceCents) && (
               <Button variant="outline" size="sm" onClick={() => void propose()} disabled={proposing}>

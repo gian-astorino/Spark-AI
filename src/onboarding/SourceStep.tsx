@@ -14,7 +14,6 @@ import { Globe02Icon, Chatting01Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { FallingBooksIcon } from './FallingBooksIcon.tsx'
 import { Icon } from './Icon.tsx'
-import { SparkMark } from './SparkMark.tsx'
 import type { ImportRequest, Source } from './types.ts'
 
 const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement; disabled?: boolean }[] = [
@@ -75,10 +74,6 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
 
   return (
     <div className="welcome">
-      <header className="welcome-top">
-        <SparkMark withName />
-      </header>
-
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
           <Stack gap={4} align="center">
@@ -116,7 +111,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
             </Stack>
           </RadioGroup>
 
-          <div className="stretch">
+          <div className="stretch welcome-action">
             <Button type="submit" size="lg" disabled={!canContinue}>
               Continua
             </Button>

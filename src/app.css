@@ -15,30 +15,6 @@
   --radius-xl-spark: calc(var(--radius) * 1.8);
 }
 
-/* ---------- Brand mark ---------- */
-
-.spark-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.spark-mark-tile {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: var(--radius-md-spark);
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-
-.spark-mark-name {
-  font-weight: 600;
-  font-size: 0.9375rem;
-  letter-spacing: -0.01em;
-}
-
 /* ---------- Headings (the DS has no type scale yet) ---------- */
 
 .page-heading {
@@ -78,15 +54,7 @@
 
 .welcome {
   display: grid;
-  grid-template-rows: auto 1fr;
   min-height: 100dvh;
-}
-
-.welcome-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem;
 }
 
 .welcome-body {
@@ -99,6 +67,22 @@
 /* A grid container stretches its single child: a full-width primary action. */
 .stretch {
   display: grid;
+}
+
+/* On a phone the Continue button stays anchored at the bottom of the screen. */
+@media (max-width: 639px) {
+  .welcome-body {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
+  .welcome-action {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 10;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--background);
+  }
 }
 
 /* ---------- Step 2: chat + profile ---------- */
