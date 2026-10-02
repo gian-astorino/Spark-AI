@@ -16,10 +16,10 @@ import {
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import {
+  AiSpeechIcon,
+  AiTranscribeAudioIcon,
   BookOpen01Icon,
   Calendar05Icon,
-  Call02Icon,
-  File02Icon,
   Edit03Icon,
   Location06Icon,
   PaintBoardIcon,
@@ -144,7 +144,7 @@ export function ProfilePanel({
       <section className="profile-section">
         <div className="profile-section-head">
           <Inline gap={2} align="center">
-            <Icon icon={Call02Icon} />
+            <Icon icon={AiSpeechIcon} />
             <ItemTitle>Conversazioni</ItemTitle>
             {profile.conversations && <Badge variant="secondary">{profile.conversations.length}</Badge>}
           </Inline>
@@ -155,7 +155,7 @@ export function ProfilePanel({
               <Item key={conversation.id} asChild size="sm">
                 <button type="button" className="conversation-row" onClick={() => onEdit({ kind: 'conversation', conversation })}>
                   <ItemMedia variant="icon">
-                    <Icon icon={File02Icon} />
+                    <Icon icon={AiTranscribeAudioIcon} />
                   </ItemMedia>
                   <ItemContent>
                     <ItemTitle>{conversation.title}</ItemTitle>

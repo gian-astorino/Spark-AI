@@ -28,7 +28,6 @@ import {
   ArrowUp02Icon,
   Attachment02Icon,
   Cancel01Icon,
-  Pdf01Icon,
   SidebarRightIcon,
 } from '@hugeicons/core-free-icons'
 import {
@@ -51,6 +50,7 @@ import { Icon } from './Icon.tsx'
 import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
 import { ProfileEditor, type Editing } from './ProfileEditor.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
+import { ACCEPT, documentIcon, documentKind, isAccepted } from './attachments.ts'
 import { hasSection, type Profile, type Section } from './profile.ts'
 import { EVENTS, WAITING, findLink } from './script.ts'
 import { displayUrl, type ImportRequest } from './types.ts'
@@ -59,11 +59,10 @@ import { displayUrl, type ImportRequest } from './types.ts'
 interface PickedFile {
   id: number
   file: File
-  /** Object URL for the preview; PDFs show an icon instead. */
+  /** Object URL for the preview; documents show an icon instead. */
   preview: string
 }
 
-const ACCEPTED = 'image/jpeg,image/png,image/webp,image/gif,image/heic,application/pdf'
 const MAX_FILES = 6
 
 type Entry =
@@ -273,7 +272,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   }
 
   function pick(list: FileList | File[] | null) {
-    const accepted = [...(list ?? [])].filter((file) => ACCEPTED.split(',').includes(file.type))
+    const accepted = [...(list ?? [])].filter(isAccepted)
     setFiles((current) =>
       [...current, ...accepted.map((file) => ({ id: nextId++, file, preview: URL.createObjectURL(file) }))].slice(0, MAX_FILES),
     )
@@ -456,8 +455,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
               <AttachmentGroup>
                 {files.map((item) => (
                   <Attachment key={item.id} size="sm">
-                    <AttachmentMedia variant={item.file.type === 'application/pdf' ? 'icon' : 'image'}>
-                      {item.file.type === 'application/pdf' ? <Icon icon={Pdf01Icon} /> : <img src={item.preview} alt="" />}
+                    <AttachmentMedia variant={documentKind(item.file) ? 'icon' : 'image'}>
+                      {documentKind(item.file) ? <Icon icon={documentIcon(item.file)} /> : <img src={item.preview} alt="" />}
                     </AttachmentMedia>
                     <AttachmentContent>
                       <AttachmentTitle>{item.file.name}</AttachmentTitle>
@@ -480,7 +479,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
               <input
                 ref={picker}
                 type="file"
-                accept={ACCEPTED}
+                accept={ACCEPT}
                 multiple
                 hidden
                 onChange={(event) => {
@@ -494,8 +493,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                   type="button"
                   variant="secondary"
                   size="icon"
-                  aria-label="Allega immagini o PDF"
-                  title="Allega immagini o PDF: un listino, il logo, delle foto"
+                  aria-label="Allega immagini o documenti"
+                  title="Allega immagini o documenti (PDF, TXT, DOCX): un listino, il logo, delle foto, il transcript di una chiamata"
                   onClick={() => picker.current?.click()}
                   disabled={files.length >= MAX_FILES}
                 >
@@ -559,10 +558,10 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   )
 }
 
-/** What the owner attached, on their sent message: images as thumbnails, PDFs by name. */
+/** What the owner attached, on their sent message: images as thumbnails, documents by name. */
 function SentFiles({ files }: { files: PickedFile[] }) {
-  const images = files.filter((item) => item.file.type !== 'application/pdf')
-  const documents = files.filter((item) => item.file.type === 'application/pdf')
+  const images = files.filter((item) => !documentKind(item.file))
+  const documents = files.filter((item) => documentKind(item.file))
   return (
     <>
       {images.length > 0 && (
@@ -577,7 +576,7 @@ function SentFiles({ files }: { files: PickedFile[] }) {
           {documents.map((item) => (
             <Attachment key={item.id} size="sm">
               <AttachmentMedia variant="icon">
-                <Icon icon={Pdf01Icon} />
+                <Icon icon={documentIcon(item.file)} />
               </AttachmentMedia>
               <AttachmentContent>
                 <AttachmentTitle>{item.file.name}</AttachmentTitle>

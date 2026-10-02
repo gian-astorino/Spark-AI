@@ -917,8 +917,14 @@ h6 {
 
 /* A kept call in the panel: a DS Item as a button, with the editable rows' hover. */
 .conversation-row {
+  /* Icon before the title, on the same line: the DS Item wraps by default. */
+  flex-wrap: nowrap;
   text-align: left;
   cursor: pointer;
+}
+
+.conversation-row > [data-slot='item-content'] {
+  min-width: 0;
 }
 
 .conversation-row:hover {

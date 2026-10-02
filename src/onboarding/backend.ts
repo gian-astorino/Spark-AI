@@ -1,6 +1,7 @@
 // Everything the onboarding asks of Supabase.
 
 import { ensureSession, supabase } from '../lib/supabase.ts'
+import { contentType } from './attachments.ts'
 import type { HoursRow, Profile } from './profile.ts'
 
 export type ImportStatus = 'running' | 'done' | 'failed'
@@ -76,7 +77,7 @@ export async function askAgent(businessId: string, turn: AgentTurn): Promise<Age
 export async function uploadAttachment(businessId: string, file: File): Promise<string> {
   const extension = file.name.split('.').pop()?.toLowerCase() || file.type.split('/')[1] || 'bin'
   const path = `${businessId}/${crypto.randomUUID()}.${extension}`
-  const { error } = await supabase.storage.from('uploads').upload(path, file, { contentType: file.type })
+  const { error } = await supabase.storage.from('uploads').upload(path, file, { contentType: contentType(file) })
   if (error) throw error
   return path
 }

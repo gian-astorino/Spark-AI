@@ -234,10 +234,11 @@ export const DEFS: ToolDef[] = [
   {
     name: 'save_call_transcript',
     description:
-      "Keep the transcript of a call with the client that the owner pasted in this message, as a document in the profile's Conversazioni. Only for a call transcript, once per transcript. The transcript itself is taken from the message as it is: write only what goes around it. Use what the call says to update the profile with the other tools too.",
+      "Keep the transcript of a call with the client, pasted in this message or attached as a document (PDF, TXT, DOCX), as a document in the profile's Conversazioni. Only for a call transcript, once per transcript. The transcript itself is taken from the message or the file as it is: write only what goes around it. Use what the call says to update the profile with the other tools too.",
     input_schema: {
       type: 'object',
       properties: {
+        attachment: nullable('string', 'The attachment id of the document holding the transcript; null when it is pasted in the message'),
         title: { type: 'string', description: 'A short title in Italian, e.g. "Chiamata di onboarding con Giulia"' },
         call_date: nullable('string', 'The date of the call as YYYY-MM-DD, only if the transcript or the owner states it'),
         participants: { type: 'array', items: { type: 'string' }, description: 'Who speaks in the call, by name or role' },
@@ -249,7 +250,7 @@ export const DEFS: ToolDef[] = [
         },
         next_steps: { type: 'array', items: { type: 'string' }, description: 'In Italian: what was agreed to do next. Empty if nothing' },
       },
-      required: ['title', 'call_date', 'participants', 'summary', 'key_points', 'next_steps'],
+      required: ['attachment', 'title', 'call_date', 'participants', 'summary', 'key_points', 'next_steps'],
       additionalProperties: false,
     },
   },
@@ -291,6 +292,8 @@ export interface ToolContext {
   choices: string[]
   /** What the owner wrote this turn: save_call_transcript keeps it as it is. */
   message?: string
+  /** The text of a document attached this turn (chat only). */
+  attachmentText?: (id: string) => Promise<string>
 }
 
 type Input = Record<string, unknown>
@@ -540,8 +543,13 @@ export async function runTool(
       return 'The options will be shown under your next message.'
 
     case 'save_call_transcript': {
-      const transcript = ctx.message?.trim()
-      if (!transcript) throw new Error('No transcript in this message: it must be pasted in the chat.')
+      const transcript =
+        typeof input.attachment === 'string' && input.attachment
+          ? await (ctx.attachmentText
+              ? ctx.attachmentText(ownAttachment(input.attachment, businessId))
+              : Promise.reject(new Error('Attachments can only be read in the chat')))
+          : ctx.message?.trim()
+      if (!transcript) throw new Error('No transcript: paste it in the chat or attach it as a PDF, TXT or DOCX file.')
       const record = {
         title: String(input.title).trim(),
         call_date: typeof input.call_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.call_date) ? input.call_date : null,
