@@ -187,9 +187,10 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
 
 /** Starts the brand board: the logo as the reference, the sector and colours in the prompt. */
 async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[]) {
-  const { data: business } = await db.from('businesses').select('name, sector').eq('id', businessId).maybeSingle()
+  const { data: business } = await db.from('businesses').select('name').eq('id', businessId).maybeSingle()
   const prompt = [
-    `Design a brand board for ${business?.name ? `"${business.name}", ` : ''}a business${business?.sector ? ` in the ${business.sector} sector` : ''} in Italy, built around the attached logo.`,
+    // No sector: the board follows the logo, not ideas about an industry.
+    `Design a brand board for ${business?.name ? `"${business.name}"` : 'a business'}, built around the attached logo.`,
     'The board contains only these four elements, laid out cleanly on a calm background with generous white space:',
     '1. The logo, exactly as attached: the same shapes, lettering and colours, never redrawn or restyled.',
     `2. The colour palette as swatches${colors.length ? `: exactly these colours, ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
