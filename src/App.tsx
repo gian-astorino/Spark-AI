@@ -15,7 +15,23 @@ type View =
   | { name: 'new'; request: ImportRequest }
   | { name: 'open'; workspaceId: string }
 
-const signOut = () => void supabase.auth.signOut()
+// Every workspace has its own address, #/w/<id>: reloading or sharing it opens
+// exactly that one. A hash, as GitHub Pages serves one page and nothing under it.
+const WORKSPACE = /^#\/w\/([0-9a-f-]{36})$/i
+
+const workspaceInAddress = () => WORKSPACE.exec(window.location.hash)?.[1] ?? null
+
+/** The address for a view, without reloading or adding a step to the history when `replace`. */
+function setAddress(hash: string, replace = false) {
+  if (window.location.hash === hash || (!window.location.hash && hash === '#/')) return
+  if (replace) window.history.replaceState(null, '', hash)
+  else window.history.pushState(null, '', hash)
+}
+
+const signOut = () => {
+  setAddress('#/', true)
+  void supabase.auth.signOut()
+}
 
 export default function App() {
   // undefined until the stored session is read.
@@ -36,8 +52,9 @@ export default function App() {
   const signedIn = !!session && !session.user.is_anonymous
   const userId = signedIn ? session.user.id : null
 
-  // Where a signed-in user lands: an admin on every workspace; a user in their
-  // own workspace, or in the onboarding that creates it.
+  // Where a signed-in user lands: the workspace in the address, if they can
+  // reach it; otherwise an admin on every workspace, and a user in their own
+  // one, or in the onboarding that creates it.
   useEffect(() => {
     if (!userId || view.name !== 'loading') return
     let cancelled = false
@@ -46,9 +63,24 @@ export default function App() {
         const role = await isAdmin()
         if (cancelled) return
         setAdmin(role)
-        if (role) return setView({ name: 'workspaces' })
-        const [own] = await listWorkspaces()
-        if (!cancelled) setView(own ? { name: 'open', workspaceId: own.id } : { name: 'source' })
+        const reachable = await listWorkspaces()
+        if (cancelled) return
+        const asked = workspaceInAddress()
+        if (asked && reachable.some((workspace) => workspace.id === asked)) {
+          return setView({ name: 'open', workspaceId: asked })
+        }
+        if (role) {
+          setAddress('#/', true)
+          return setView({ name: 'workspaces' })
+        }
+        const [own] = reachable
+        if (own) {
+          setAddress(`#/w/${own.id}`, true)
+          setView({ name: 'open', workspaceId: own.id })
+        } else {
+          setAddress('#/', true)
+          setView({ name: 'source' })
+        }
       } catch (error) {
         console.error(error)
       }
@@ -58,11 +90,31 @@ export default function App() {
     }
   }, [userId, view.name])
 
+  // Back and forward in the browser move between the list and the workspaces.
+  useEffect(() => {
+    const follow = () => {
+      const asked = workspaceInAddress()
+      if (asked) setView({ name: 'open', workspaceId: asked })
+      else if (admin) setView({ name: 'workspaces' })
+    }
+    window.addEventListener('popstate', follow)
+    return () => window.removeEventListener('popstate', follow)
+  }, [admin])
+
   if (session === undefined) return null
   // The anonymous sessions of the first version count as signed out.
   if (!signedIn) return <Login />
 
-  const toWorkspaces = admin ? () => setView({ name: 'workspaces' }) : undefined
+  const open = (workspaceId: string) => {
+    setAddress(`#/w/${workspaceId}`)
+    setView({ name: 'open', workspaceId })
+  }
+  const toWorkspaces = admin
+    ? () => {
+        setAddress('#/')
+        setView({ name: 'workspaces' })
+      }
+    : undefined
   const leave = admin ? undefined : signOut
   switch (view.name) {
     case 'loading':
@@ -71,14 +123,22 @@ export default function App() {
       return (
         <Workspaces
           email={session.user.email}
-          onOpen={(workspace) => setView({ name: 'open', workspaceId: workspace.id })}
+          onOpen={(workspace) => open(workspace.id)}
           onCreate={() => setView({ name: 'source' })}
         />
       )
     case 'source':
       return <SourceStep onContinue={(request) => setView({ name: 'new', request })} onBack={toWorkspaces} />
     case 'new':
-      return <ChatStep request={view.request} onBack={toWorkspaces} onSignOut={leave} />
+      return (
+        <ChatStep
+          request={view.request}
+          onBack={toWorkspaces}
+          onSignOut={leave}
+          // The new workspace's address replaces the list's, so a reload reopens it.
+          onCreated={(id) => setAddress(`#/w/${id}`, true)}
+        />
+      )
     case 'open':
       return <ChatStep key={view.workspaceId} workspaceId={view.workspaceId} onBack={toWorkspaces} onSignOut={leave} />
   }

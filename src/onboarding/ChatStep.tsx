@@ -115,9 +115,12 @@ export function ChatStep({
   workspaceId,
   onBack,
   onSignOut,
+  onCreated,
 }: {
   request?: ImportRequest
   workspaceId?: string
+  /** A new workspace, once it exists: its address can then point at it. */
+  onCreated?: (workspaceId: string) => void
   /** Back to the workspaces: admins only. */
   onBack?: () => void
   /** For a user, whose only place is their workspace. */
@@ -143,7 +146,10 @@ export function ChatStep({
   function businessId() {
     business.current ??= workspaceId
       ? Promise.resolve(workspaceId)
-      : createBusiness(request?.source === 'website' ? request.target : undefined)
+      : createBusiness(request?.source === 'website' ? request.target : undefined).then((id) => {
+          onCreated?.(id)
+          return id
+        })
     return business.current
   }
 
