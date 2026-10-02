@@ -12,8 +12,8 @@ import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 // square canvas.
 //
 // Next to the recreation, from the same logo, a brand board: one wide image
-// with the logo, the colours, the fonts and a clean background for its
-// graphics (startBoard, checkBoard).
+// with the logo, the colours, the fonts and a pattern, texture or gradient
+// for its graphics (startBoard, checkBoard).
 //
 // The recreation runs as an OpenAI background job, started here and checked by
 // the app (checkLogo): no request waits for the image model, and no pixels are
@@ -194,7 +194,7 @@ async function startBoard(db: SupabaseClient, businessId: string, logo: string, 
     '1. The logo, exactly as attached: the same shapes, lettering and colours, never redrawn or restyled.',
     `2. The colour palette as swatches${colors.length ? `: exactly these colours, ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
     '3. Fonts, preferably sans-serif.',
-    '4. A clean background for the brand\'s graphics.',
+    '4. A pattern, texture or gradient for the brand\'s graphics.',
     'Nothing else: no photographs, mockups, products, people, taglines, slogans, extra words or watermarks. Flat, sharp, professional, like a page of a brand guidelines book.',
   ].join('\n')
   return await startImageJob({ prompt, images: [logo], action: 'edit', size: BOARD_SIZE, background: 'opaque' })
