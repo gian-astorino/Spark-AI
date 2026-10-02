@@ -135,7 +135,7 @@ export async function checkLogoJob(businessId: string): Promise<string> {
 }
 
 export async function loadProfile(businessId: string): Promise<Profile> {
-  const [business, locations, brand, colors, catalog, team, calendar, media] = await Promise.all([
+  const [business, locations, brand, colors, catalog, team, calendar, media, calls] = await Promise.all([
     supabase.from('businesses').select('name, description, sector, onboarding_status').eq('id', businessId).single(),
     supabase
       .from('locations')
@@ -156,6 +156,11 @@ export async function loadProfile(businessId: string): Promise<Profile> {
     supabase.from('team_members').select('display_name, position').eq('business_id', businessId).order('position'),
     supabase.from('calendar_setups').select('provider, provider_label').eq('business_id', businessId).maybeSingle(),
     supabase.from('business_media').select('bucket, path, caption, position').eq('business_id', businessId).order('position'),
+    supabase
+      .from('call_transcripts')
+      .select('id, title, call_date, summary, document')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false }),
   ])
 
   const profile: Profile = { status: business.data?.onboarding_status ?? undefined }
@@ -239,6 +244,15 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       tool: calendar.data ? (calendar.data.provider_label ?? CALENDARS[calendar.data.provider] ?? calendar.data.provider) : undefined,
       provider: calendar.data?.provider,
     }
+  }
+  if (calls.data?.length) {
+    profile.conversations = calls.data.map((call) => ({
+      id: call.id,
+      title: call.title,
+      date: call.call_date ?? undefined,
+      summary: call.summary,
+      document: call.document,
+    }))
   }
   return profile
 }

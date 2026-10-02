@@ -2,14 +2,15 @@ import ReactMarkdown from 'react-markdown'
 
 /**
  * The agent's replies: bold, italics, lists and line breaks, nothing more.
- * Images and raw HTML are not rendered; links open in a new tab.
+ * A document (a call transcript) keeps its headings too. Images and raw HTML
+ * are never rendered; links open in a new tab.
  */
-export function Markdown({ children }: { children: string }) {
+export function Markdown({ children, document = false }: { children: string; document?: boolean }) {
   return (
-    <div className="markdown">
+    <div className={document ? 'markdown markdown-document' : 'markdown'}>
       <ReactMarkdown
         skipHtml
-        disallowedElements={['img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'table']}
+        disallowedElements={document ? ['img', 'pre'] : ['img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'table']}
         unwrapDisallowed
         components={{
           a: ({ href, children: label }) => (

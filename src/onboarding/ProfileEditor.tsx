@@ -31,7 +31,8 @@ import {
   saveLocation,
   saveTone,
 } from './edits.ts'
-import type { CatalogItem, Location, Profile } from './profile.ts'
+import { Markdown } from './Markdown.tsx'
+import type { CatalogItem, Conversation, Location, Profile } from './profile.ts'
 
 /** What is being edited: a section, one location or treatment, or the logo to look at. */
 export type Editing =
@@ -43,6 +44,7 @@ export type Editing =
   | { kind: 'calendar' }
   | { kind: 'logo' }
   | { kind: 'board' }
+  | { kind: 'conversation'; conversation: Conversation }
 
 const WEEKDAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 const BRAND_COLOR_NAMES = ['Primary', 'Secondary', 'Accent']
@@ -68,6 +70,8 @@ export function ProfileEditor({
             <LogoView url={profile.branding?.logoUrl} />
           ) : editing.kind === 'board' ? (
             <BoardView url={profile.branding?.boardUrl} />
+          ) : editing.kind === 'conversation' ? (
+            <ConversationView conversation={editing.conversation} />
           ) : (
             <Form key={formKey(editing)} editing={editing} profile={profile} businessId={businessId} onDone={onSaved} />
           )}
@@ -115,6 +119,23 @@ function BoardView({ url }: { url?: string }) {
   )
 }
 
+/** A call transcript, as the document it was kept as. */
+function ConversationView({ conversation }: { conversation: Conversation }) {
+  // The document opens with its own title: the dialog's title names it, so it is not repeated.
+  const body = conversation.document.replace(/^# .*\n+/, '')
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{conversation.title}</DialogTitle>
+        <DialogDescription>Trascrizione di una chiamata, con sintesi e prossimi passi.</DialogDescription>
+      </DialogHeader>
+      <div className="conversation-document">
+        <Markdown document>{body}</Markdown>
+      </div>
+    </>
+  )
+}
+
 /** One form per kind; each keeps its own draft and saves or deletes as a whole. */
 function Form({
   editing,
@@ -122,7 +143,7 @@ function Form({
   businessId,
   onDone,
 }: {
-  editing: Exclude<Editing, { kind: 'logo' } | { kind: 'board' }>
+  editing: Exclude<Editing, { kind: 'logo' } | { kind: 'board' } | { kind: 'conversation' }>
   profile: Profile
   businessId: () => Promise<string>
   onDone: () => void

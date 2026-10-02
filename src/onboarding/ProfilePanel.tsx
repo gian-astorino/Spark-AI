@@ -5,7 +5,10 @@ import {
   Badge,
   Button,
   Inline,
+  Item,
+  ItemContent,
   ItemDescription,
+  ItemMedia,
   ItemTitle,
   Progress,
   Skeleton,
@@ -15,6 +18,8 @@ import {
 import {
   BookOpen01Icon,
   Calendar05Icon,
+  Call02Icon,
+  File02Icon,
   Edit03Icon,
   Location06Icon,
   PaintBoardIcon,
@@ -134,6 +139,46 @@ export function ProfilePanel({
           </section>
         )
       })}
+
+      {/* Not one of the sections that complete the profile: the calls kept so far. */}
+      <section className="profile-section">
+        <div className="profile-section-head">
+          <Inline gap={2} align="center">
+            <Icon icon={Call02Icon} />
+            <ItemTitle>Conversazioni</ItemTitle>
+            {profile.conversations && <Badge variant="secondary">{profile.conversations.length}</Badge>}
+          </Inline>
+        </div>
+        {profile.conversations ? (
+          <Stack gap={1}>
+            {profile.conversations.map((conversation) => (
+              <Item key={conversation.id} asChild size="sm">
+                <button type="button" className="conversation-row" onClick={() => onEdit({ kind: 'conversation', conversation })}>
+                  <ItemMedia variant="icon">
+                    <Icon icon={File02Icon} />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{conversation.title}</ItemTitle>
+                    <ItemDescription>
+                      {conversation.date
+                        ? new Date(`${conversation.date}T12:00:00`).toLocaleDateString('it-IT', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                          })
+                        : conversation.summary}
+                    </ItemDescription>
+                  </ItemContent>
+                </button>
+              </Item>
+            ))}
+          </Stack>
+        ) : (
+          <ItemDescription>
+            Incolla in chat il transcript di una chiamata con il cliente: Spark aggiorna il profilo e lo salva qui.
+          </ItemDescription>
+        )}
+      </section>
     </div>
   )
 }

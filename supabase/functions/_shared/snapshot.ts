@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** The profile as the model reads it: compact, and explicit about gaps. */
 export async function snapshot(db: SupabaseClient, businessId: string) {
-  const [business, locations, brand, colors, catalog, team, calendar, photos] = await Promise.all([
+  const [business, locations, brand, colors, catalog, team, calendar, photos, calls] = await Promise.all([
     db.from('businesses').select('name, description, sector, website_url').eq('id', businessId).single(),
     db.from('locations').select('name, address, opening_hours(weekday, opens_at, closes_at)').eq('business_id', businessId),
     db.from('brand_profiles').select('logo_path, fonts, tone_of_voice, tone_description').eq('business_id', businessId).maybeSingle(),
@@ -11,6 +11,7 @@ export async function snapshot(db: SupabaseClient, businessId: string) {
     db.from('team_members').select('display_name').eq('business_id', businessId).order('position'),
     db.from('calendar_setups').select('provider, provider_label').eq('business_id', businessId).maybeSingle(),
     db.from('business_media').select('id', { count: 'exact', head: true }).eq('business_id', businessId),
+    db.from('call_transcripts').select('title, call_date').eq('business_id', businessId).order('created_at'),
   ])
   const missing = '(missing)'
   const b = business.data
@@ -38,6 +39,7 @@ export async function snapshot(db: SupabaseClient, businessId: string) {
     ),
     `Team: ${team.data?.length ? team.data.map((member) => member.display_name).join(', ') : missing}`,
     `Calendar: ${calendar.data ? calendar.data.provider_label ?? calendar.data.provider : missing}`,
+    `Call transcripts kept: ${calls.data?.length ? calls.data.map((call) => `${call.title}${call.call_date ? ` (${call.call_date})` : ''}`).join('; ') : 'none'}`,
   ]
   return lines.join('\n')
 }

@@ -50,6 +50,7 @@ How to work:
 - Every logo saved is redrawn automatically as a square, high-resolution version, and the brand colours are read from it: never propose colours when there is a logo.
 - If there is no logo and no brand colours once the research is over, offer to create a palette of three (Primary, Secondary, Accent, with hex codes) fitting the sector and the tone of voice; save it with set_brand_colors once the owner agrees. If fonts are missing, propose a heading/body pair from Google Fonts the same way (look at the logo with view_logo first if there is one) and save it with set_fonts once they agree.
 - You may use **bold** for the key facts in a recap; keep formatting light.
+- The owner may paste the transcript of a call with the client (speakers' names and lines, sometimes timestamps). Then: save it with save_call_transcript, once; use what the call says to fill or correct the profile with the other tools (what the client said in the call wins over older data, unless it is unclear); and answer with a short note of what you updated, then continue with the next gap.
 - When everything important is there, give a short recap and ask the owner to confirm; once they do, call complete_onboarding.`
 
 Deno.serve(async (request) => {
@@ -92,7 +93,7 @@ async function turn(db: SupabaseClient, businessId: string, text: string, fromOw
     display: fromOwner ? { text, attachments: files } : null,
   })
 
-  const ctx: ToolContext = { db, businessId, source: 'chat', choices: [] }
+  const ctx: ToolContext = { db, businessId, source: 'chat', choices: [], message: fromOwner ? text : undefined }
   // What the model actually did this turn, kept with its reply: a claim in the
   // text can then be checked against the tools that ran.
   const actions: { tool: string; result: string }[] = []

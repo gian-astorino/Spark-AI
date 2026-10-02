@@ -232,6 +232,28 @@ export const DEFS: ToolDef[] = [
     },
   },
   {
+    name: 'save_call_transcript',
+    description:
+      "Keep the transcript of a call with the client that the owner pasted in this message, as a document in the profile's Conversazioni. Only for a call transcript, once per transcript. The transcript itself is taken from the message as it is: write only what goes around it. Use what the call says to update the profile with the other tools too.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'A short title in Italian, e.g. "Chiamata di onboarding con Giulia"' },
+        call_date: nullable('string', 'The date of the call as YYYY-MM-DD, only if the transcript or the owner states it'),
+        participants: { type: 'array', items: { type: 'string' }, description: 'Who speaks in the call, by name or role' },
+        summary: { type: 'string', description: 'Two to four sentences in Italian: what the call was about and how it went' },
+        key_points: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'In Italian: the facts and wishes that came up (services, prices, hours, team, goals, doubts)',
+        },
+        next_steps: { type: 'array', items: { type: 'string' }, description: 'In Italian: what was agreed to do next. Empty if nothing' },
+      },
+      required: ['title', 'call_date', 'participants', 'summary', 'key_points', 'next_steps'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'complete_onboarding',
     description: 'Call once the profile has everything needed and the owner has confirmed it.',
     input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
@@ -267,6 +289,8 @@ export interface ToolContext {
   source: 'chat' | 'import'
   /** Filled by offer_choices, read by the caller after the turn. */
   choices: string[]
+  /** What the owner wrote this turn: save_call_transcript keeps it as it is. */
+  message?: string
 }
 
 type Input = Record<string, unknown>
@@ -515,6 +539,20 @@ export async function runTool(
       ctx.choices = (input.options as string[]).slice(0, 4)
       return 'The options will be shown under your next message.'
 
+    case 'save_call_transcript': {
+      const transcript = ctx.message?.trim()
+      if (!transcript) throw new Error('No transcript in this message: it must be pasted in the chat.')
+      const record = {
+        title: String(input.title).trim(),
+        call_date: typeof input.call_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.call_date) ? input.call_date : null,
+        participants: (input.participants as string[]).map((name) => name.trim()).filter(Boolean),
+        summary: String(input.summary).trim(),
+      }
+      const document = transcriptDocument(record, input.key_points as string[], input.next_steps as string[], transcript)
+      await check(db.from('call_transcripts').insert({ business_id: businessId, ...record, document, transcript }))
+      return 'Transcript saved in Conversazioni.'
+    }
+
     case 'complete_onboarding':
       await check(db.from('businesses').update({ onboarding_status: 'completed' }).eq('id', businessId))
       return 'Onboarding marked as complete.'
@@ -535,4 +573,41 @@ async function check<T extends { error: { message: string } | null }>(query: Pro
   const result = await query
   if (result.error) throw new Error(result.error.message)
   return result
+}
+
+/**
+ * The transcript as a document: title, date and people, the summary, key
+ * points and next steps, then the transcript itself, untouched except for
+ * the speakers' names set in bold.
+ */
+function transcriptDocument(
+  record: { title: string; call_date: string | null; participants: string[]; summary: string },
+  keyPoints: string[],
+  nextSteps: string[],
+  transcript: string,
+) {
+  const date = record.call_date
+    ? new Date(`${record.call_date}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
+  const meta = [date, record.participants.join(', ')].filter(Boolean).join(' · ')
+  const list = (items: string[]) => items.map((item) => `- ${item.trim()}`).join('\n')
+  // "Giulia: ..." or "[00:12] Giulia: ..." → the name in bold.
+  const lines = transcript
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^(\s*(?:\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*)?)([^:\n]{1,40}):\s+/, (_, time, speaker) => `${time}**${speaker.trim()}:** `))
+    // Two spaces at the end keep each line a line in Markdown.
+    .map((line) => (line.trim() ? `${line}  ` : ''))
+    .join('\n')
+  return [
+    `# ${record.title}`,
+    meta && `*${meta}*`,
+    '## Sintesi',
+    record.summary,
+    keyPoints.length > 0 && `## Punti chiave\n\n${list(keyPoints)}`,
+    nextSteps.length > 0 && `## Prossimi passi\n\n${list(nextSteps)}`,
+    '## Trascrizione',
+    lines,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 }

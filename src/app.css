@@ -875,3 +875,61 @@ h6 {
   font-weight: var(--font-weight-medium);
   color: var(--muted-foreground);
 }
+
+/* ---------- Conversazioni: call transcripts kept as documents ---------- */
+
+.conversation-document {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+/* The dialog a document opens in: wider than a form, as wide as reading allows. */
+[data-slot='dialog-content']:has(.conversation-document) {
+  width: min(92vw, 44rem);
+  max-width: none;
+}
+
+.markdown-document {
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.markdown-document h1,
+.markdown-document h2,
+.markdown-document h3 {
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.markdown-document h2 {
+  margin-top: 1.5rem;
+  font-size: var(--text-base);
+}
+
+.markdown-document h3 {
+  margin-top: 1rem;
+  font-size: var(--text-sm);
+}
+
+.markdown-document > p:first-child em {
+  color: var(--muted-foreground);
+}
+
+/* A kept call in the panel: a DS Item as a button, with the editable rows' hover. */
+.conversation-row {
+  text-align: left;
+  cursor: pointer;
+}
+
+.conversation-row:hover {
+  background: var(--muted);
+}
+
+/* Lists keep their markers: the DS's reset takes them away. */
+.markdown ul {
+  list-style: disc;
+}
+
+.markdown ol {
+  list-style: decimal;
+}

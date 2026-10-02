@@ -76,6 +76,17 @@ export interface Profile {
   photos?: { url: string; caption?: string }[]
   catalog?: CatalogItem[]
   calendar?: { members?: string[]; tool?: string; provider?: string }
+  /** Transcripts of calls with the client, kept as Markdown documents. */
+  conversations?: Conversation[]
+}
+
+export interface Conversation {
+  id: string
+  title: string
+  /** YYYY-MM-DD, when the call's date is known. */
+  date?: string
+  summary: string
+  document: string
 }
 
 export function hasSection(profile: Profile, section: Section) {
