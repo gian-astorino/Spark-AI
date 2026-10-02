@@ -69,6 +69,27 @@ h6 {
   min-height: 100dvh;
 }
 
+.welcome-aside {
+  display: none;
+}
+
+/* Desktop: two columns, a muted one on the left (its content is to come)
+   and the choices on the right. */
+@media (min-width: 1024px) {
+  .welcome {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .welcome-aside {
+    display: block;
+    background: var(--muted);
+  }
+
+  .welcome-body {
+    align-self: center;
+  }
+}
+
 .welcome-body {
   width: 100%;
   max-width: 34rem;

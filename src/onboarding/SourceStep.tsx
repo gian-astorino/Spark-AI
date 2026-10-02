@@ -78,6 +78,8 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
 
   return (
     <div className="welcome">
+      {/* Desktop only: the left column, empty for now. */}
+      <div className="welcome-aside" aria-hidden />
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
           <Stack gap={4} align="center">
