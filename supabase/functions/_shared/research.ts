@@ -36,18 +36,18 @@ What the profile needs:
 - address and opening hours, if it has a place customers visit;
 - catalog: its catalog items, the products or services it sells, with price and, for services, duration (category and description when given);
 - tone of voice: a description of how the business talks to its customers, from how its own pages and posts are written (not a platform's copy);
-- branding: logo, brand colours and fonts.
+- branding: logo and brand colours (fonts are not part of the research).
 
 A first research (starting from the business's own link, not a link pasted in the chat) begins with a thorough pass, before any rule about stopping:
 1. Read the home page and every page of the site's own navigation that is about its products or services, prices or packages, about us or the team, and contacts or opening hours. Several pages, not one.
 2. Search the web for the business by name (and city, if it has one), and read its listings among the first results: the platforms or marketplaces where it sells or takes bookings, its Google Business listing, its Facebook and Instagram pages.
 Only after that pass does the rule below apply.
 
-The one rule: look only for what is missing. Work section by section: business name, sector, address, opening hours, catalog, tone of voice, logo, colours, fonts. A section that already has data counts as done: never search again to complete or improve it (a better description, other photos) unless the owner asked for it.
+The one rule: look only for what is missing. Work section by section: business name, sector, address, opening hours, catalog, tone of voice, logo, colours. A section that already has data counts as done: never search again to complete or improve it (a better description, other photos) unless the owner asked for it.
 
 The catalog is the exception to "has data": it counts as done only when its items have prices. A few generic entries without prices (the kind a website's menu lists) do not make a catalog; when the catalog is still missing or has no prices, look for a page that lists it with prices (a price list, an online shop, a booking or marketplace page) before anything else. The profile_data you are given shows what is already there; with what you save along the way, it tells you what is still missing. When nothing is missing, call finish_research at once, even with budget left. If two searches in a row bring nothing new, stop.
 
-Branding comes from the business's own website, never from a platform, marketplace or directory: when logo, colours or fonts are missing, find the official website (it may be linked from its platform or social pages, or found by searching its name) and call import_branding_from_site with its home page. That reads logo, colours and fonts in one go. If the business has no website of its own, use the preview_image of its Facebook or Instagram page as the logo with set_logo_from_url.
+Branding comes from the business's own website, never from a platform, marketplace or directory: when the logo or the colours are missing, find the official website (it may be linked from its platform or social pages, or found by searching its name) and call import_branding_from_site with its home page. That reads logo and colours in one go. If the business has no website of its own, use the preview_image of its Facebook or Instagram page as the logo with set_logo_from_url.
 If there is still no logo after that, look for it with search_images (e.g. "<name> <city> logo"). You will see the results: pick one only if you can read the business's name in it and it comes from a page about this business (its site, social or platform pages); save it with set_logo_from_url and its image address. If none clearly qualifies, leave the logo missing: a wrong logo is worse than none.
 
 How to work:
@@ -87,7 +87,7 @@ const RESEARCH_TOOLS: OpenAI.Responses.Tool[] = [
   asFunctionTool({
     name: 'import_branding_from_site',
     description:
-      "Read logo, brand colours and fonts from the business's own website and save them. Give its home page. Not for booking platforms, directories or social pages.",
+      "Read the logo and the brand colours from the business's own website and save them. Give its home page. Not for booking platforms, directories or social pages.",
     input_schema: {
       type: 'object',
       properties: { url: { type: 'string', description: "The home page of the business's own website" } },
@@ -217,7 +217,6 @@ export async function stepResearch(db: SupabaseClient, job: ResearchJob): Promis
             const found = [
               home.branding?.logo && 'logo',
               Object.keys(home.branding?.colors ?? {}).length > 0 && 'colours',
-              (home.branding?.fonts?.length ?? 0) > 0 && 'fonts',
             ].filter(Boolean)
             output = found.length ? `Saved from ${home.url}: ${found.join(', ')}.` : `No branding found on ${home.url}.`
           }

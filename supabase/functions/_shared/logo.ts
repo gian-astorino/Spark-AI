@@ -49,7 +49,7 @@ export function requestLogoRefresh(businessId: string) {
 export async function refreshLogo(db: SupabaseClient, businessId: string) {
   const { data: brand } = await db
     .from('brand_profiles')
-    .select('logo_path, logo_source_url, site_colors, fonts')
+    .select('logo_path, logo_source_url, site_colors')
     .eq('business_id', businessId)
     .maybeSingle()
   if (!brand?.logo_path) return
@@ -116,7 +116,7 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
 
       // 3. The brand board, from the same picture of the logo.
       try {
-        update.board_job_id = await startBoard(db, businessId, seen, colors, (brand.fonts as BrandFont[] | null) ?? [])
+        update.board_job_id = await startBoard(db, businessId, seen, colors)
         update.board_job_status = 'running'
         update.board_error = null
       } catch (failure) {
@@ -185,23 +185,14 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
 }
 
 /** Starts the brand board: the logo as the reference, the sector and colours in the prompt. */
-interface BrandFont {
-  role: 'heading' | 'body'
-  family: string
-}
-
-async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[], fonts: BrandFont[]) {
-  const heading = fonts.find((font) => font.role === 'heading')?.family
-  const body = fonts.find((font) => font.role === 'body')?.family
+async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[]) {
   const { data: business } = await db.from('businesses').select('name, sector').eq('id', businessId).maybeSingle()
   const prompt = [
     `Design a brand board for ${business?.name ? `"${business.name}", ` : ''}a business${business?.sector ? ` in the ${business.sector} sector` : ''} in Italy, built around the attached logo.`,
     'The board contains only these four elements, laid out cleanly on a calm background with generous white space:',
     '1. The logo, exactly as attached: the same shapes, lettering and colours, never redrawn or restyled.',
     `2. The colour palette as swatches${colors.length ? `: exactly these colours, ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
-    heading || body
-      ? `3. The fonts the brand uses on its website: ${[heading && `heading font "${heading}"`, body && `body font "${body}"`].filter(Boolean).join(' and ')}${heading && body ? '' : ', and a matching one for the other role (sans-serif preferred)'}. Each shown with its name written exactly so and a short sample ("Aa" and the alphabet), set in that typeface.`
-      : "3. The fonts: a heading font and a body font that suit the logo and the sector, each shown with its name and a short sample (\"Aa\" and the alphabet). Prefer sans-serif fonts; use a serif only if the logo's own lettering clearly is one.",
+    '3. Fonts, preferably sans-serif.',
     '4. A simple complementary pattern / brand texture.',
     'Nothing else: no photographs, mockups, products, people, taglines, slogans, extra words or watermarks. Flat, sharp, professional, like a page of a brand guidelines book.',
   ].join('\n')

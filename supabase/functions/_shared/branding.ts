@@ -2,9 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Branding } from './firecrawl.ts'
 import { requestLogoRefresh } from './logo.ts'
 
-// Branding from a business's own home page: logo, fonts and the site's
-// colours. The brand colours are then read from the logo and completed with
-// the site's (see logo.ts).
+// Branding from a business's own home page: logo and the site's colours.
+// The brand colours are then read from the logo and completed with the
+// site's (see logo.ts). Fonts are not taken from the site: the agent proposes
+// them, and the brand board picks its own.
 // Used by the import (from the link it starts with) and by the research
 // (from the official site it finds).
 
@@ -18,37 +19,6 @@ export function isPlatform(url: string) {
   } catch {
     return false
   }
-}
-
-// Generic families and web-safe fallbacks are not a brand choice.
-const NOT_BRAND_FONTS =
-  /^(serif|sans-serif|monospace|cursive|system-ui|-apple-system|blinkmacsystemfont|arial|helvetica( neue)?|georgia|times( new roman)?|verdana|tahoma|segoe ui|roboto)$/i
-
-interface Font {
-  role: 'heading' | 'body'
-  family: string
-}
-
-/**
- * The brand's fonts with their role. `typography.fontFamilies` is the page's
- * own choice (`heading`, `primary` = body); the flat `fonts` list also holds
- * fallbacks, so it is only used when the first is missing.
- */
-function brandFonts(branding: Branding): Font[] {
-  const families = branding.typography?.fontFamilies ?? {}
-  const found: Font[] = []
-  if (typeof families.heading === 'string') found.push({ role: 'heading', family: families.heading })
-  if (typeof families.primary === 'string') found.push({ role: 'body', family: families.primary })
-  if (found.length === 0) {
-    for (const font of branding.fonts ?? []) {
-      if (font.family) found.push({ role: font.role === 'heading' ? 'heading' : 'body', family: font.family })
-    }
-  }
-  const clean = found
-    .map((font) => ({ ...font, family: font.family.split(',')[0].trim().replace(/^["']|["']$/g, '') }))
-    .filter((font) => font.family && !NOT_BRAND_FONTS.test(font.family))
-  // One entry per role, first one wins.
-  return clean.filter((font, index) => clean.findIndex((other) => other.role === font.role) === index)
 }
 
 /** The site's colours by their role, hex only. */
@@ -81,7 +51,6 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
           board_error: null,
         }
       : {}),
-    fonts: brandFonts(branding),
     site_colors: siteColors(branding),
     source: 'import',
   })
