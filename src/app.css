@@ -88,6 +88,10 @@ h6 {
   .welcome-body {
     align-self: center;
   }
+
+  .page-heading {
+    text-align: left;
+  }
 }
 
 .welcome-body {

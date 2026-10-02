@@ -82,7 +82,7 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
       <div className="welcome-aside" aria-hidden />
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
-          <Stack gap={4} align="center">
+          <Stack gap={4} align={{ base: 'center', lg: 'start' }}>
             <FallingBooksIcon size={48} />
             <div className="page-heading">
               <h1>Contesto</h1>
