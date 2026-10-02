@@ -25,7 +25,7 @@ import {
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from './Icon.tsx'
 import type { Editing } from './ProfileEditor.tsx'
-import { SECTIONS, SECTION_TITLES, type Profile, type Section } from './profile.ts'
+import { SECTIONS, SECTION_TITLES, sectionProgress, type Profile, type Section } from './profile.ts'
 
 export type SectionState = 'ready' | 'loading' | 'empty'
 
@@ -70,7 +70,11 @@ export function ProfilePanel({
   /** False inside the sheet, whose own header already names the panel. */
   titled?: boolean
 }) {
-  const filled = SECTIONS.filter((section) => sectionState(section) === 'ready').length
+  // Only complete sections count: one field in does not make a section done.
+  const filled = SECTIONS.filter((section) => {
+    const progress = sectionProgress(profile, section)
+    return progress.filled === progress.total
+  }).length
 
   return (
     <div className="profile">
@@ -88,13 +92,21 @@ export function ProfilePanel({
 
       {SECTIONS.map((section) => {
         const state = sectionState(section)
+        const progress = sectionProgress(profile, section)
         return (
           <section key={section} className="profile-section" data-state={state}>
             <div className="profile-section-head">
               <Inline gap={2} align="center">
                 <Icon icon={SECTION_ICONS[section]} />
                 <ItemTitle>{SECTION_TITLES[section]}</ItemTitle>
-                {state === 'ready' && <span className="badge-imported">Importato</span>}
+                {state === 'ready' &&
+                  (progress.filled === progress.total ? (
+                    <span className="badge-imported">Importato</span>
+                  ) : (
+                    <Badge variant="secondary">
+                      {progress.filled} di {progress.total}
+                    </Badge>
+                  ))}
               </Inline>
               <Inline gap={1} align="center">
                 {state === 'loading' && <Spinner />}

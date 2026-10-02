@@ -99,3 +99,39 @@ export function hasSection(profile: Profile, section: Section) {
       return !!(profile.calendar?.members?.length || profile.calendar?.tool)
   }
 }
+
+/**
+ * How much of a section is filled: the things it asks for, and how many are
+ * in. A section is complete only when all of them are; photos are a bonus of
+ * the branding, not one of its parts.
+ */
+export function sectionProgress(profile: Profile, section: Section): { filled: number; total: number } {
+  const count = (parts: boolean[]) => ({ filled: parts.filter(Boolean).length, total: parts.length })
+  const items = profile.catalog ?? []
+  switch (section) {
+    case 'business':
+      return count([!!profile.business?.name, !!profile.business?.description, !!profile.business?.sector])
+    case 'location': {
+      const locations = profile.locations ?? []
+      return count([locations.some((l) => !!l.address), locations.some((l) => l.intervals.length > 0)])
+    }
+    case 'branding':
+      return count([
+        !!profile.branding?.logoUrl,
+        (profile.branding?.colors.length ?? 0) > 0,
+        (profile.branding?.fonts.length ?? 0) > 0,
+      ])
+    case 'tone':
+      return count([!!profile.branding?.toneDescription, (profile.branding?.tone.length ?? 0) > 0])
+    case 'catalog':
+      // Treatments, then each of their details on every one of them.
+      return count([
+        items.length > 0,
+        items.length > 0 && items.every((item) => item.priceCents != null),
+        items.length > 0 && items.every((item) => item.durationMinutes != null),
+        items.length > 0 && items.every((item) => !!item.description),
+      ])
+    case 'calendar':
+      return count([(profile.calendar?.members?.length ?? 0) > 0, !!profile.calendar?.tool])
+  }
+}
