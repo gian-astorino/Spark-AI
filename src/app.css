@@ -845,8 +845,10 @@ h6 {
    magenta, the name in Plus Jakarta Sans. */
 .spark-logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem;
+  text-align: center;
 }
 
 .spark-logo-mark {
