@@ -16,6 +16,10 @@ import {
   NativeSelect,
   NativeSelectOption,
   Stack,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Textarea,
 } from '@skyground-media/pipelean-design-system'
 import { CALENDARS } from './backend.ts'
@@ -119,19 +123,37 @@ function BoardView({ url }: { url?: string }) {
   )
 }
 
-/** A call transcript, as the document it was kept as. */
+/** A call transcript, as the document it was kept as: the AI's recap in one tab, the transcript in the other. */
 function ConversationView({ conversation }: { conversation: Conversation }) {
   // The document opens with its own title: the dialog's title names it, so it is not repeated.
   const body = conversation.document.replace(/^# .*\n+/, '')
+  const cut = body.indexOf('## Trascrizione')
+  const recap = cut === -1 ? body : body.slice(0, cut).trim()
+  const transcript = cut === -1 ? '' : body.slice(cut).replace(/^## Trascrizione\n+/, '')
   return (
     <>
       <DialogHeader>
         <DialogTitle>{conversation.title}</DialogTitle>
         <DialogDescription>Trascrizione di una chiamata, con sintesi e prossimi passi.</DialogDescription>
       </DialogHeader>
-      <div className="conversation-document">
-        <Markdown document>{body}</Markdown>
-      </div>
+      <Tabs defaultValue="recap">
+        <TabsList>
+          <TabsTrigger value="recap">Riepilogo</TabsTrigger>
+          <TabsTrigger value="transcript" disabled={!transcript}>
+            Trascrizione
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="recap">
+          <div className="conversation-document">
+            <Markdown document>{recap}</Markdown>
+          </div>
+        </TabsContent>
+        <TabsContent value="transcript">
+          <div className="conversation-document">
+            <Markdown document>{transcript}</Markdown>
+          </div>
+        </TabsContent>
+      </Tabs>
     </>
   )
 }
