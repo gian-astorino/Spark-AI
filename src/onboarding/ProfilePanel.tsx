@@ -20,7 +20,6 @@ import {
   AiTranscribeAudioIcon,
   BookOpen01Icon,
   Calendar05Icon,
-  Edit03Icon,
   Location06Icon,
   PaintBoardIcon,
   PenTool03Icon,
@@ -115,15 +114,18 @@ export function ProfilePanel({
               </Inline>
               <Inline gap={1} align="center">
                 {state === 'loading' && <Spinner />}
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Modifica ${SECTION_TITLES[section].toLowerCase()}`}
-                  title="Modifica"
-                  onClick={() => onEdit(SECTION_EDIT[section](profile))}
-                >
-                  <Icon icon={section === 'catalog' ? PlusSignIcon : Edit03Icon} />
-                </Button>
+                {/* No pencils: every value opens its editor when tapped. The catalog keeps its "+". */}
+                {section === 'catalog' && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Aggiungi elemento di catalogo"
+                    title="Aggiungi elemento"
+                    onClick={() => onEdit(SECTION_EDIT[section](profile))}
+                  >
+                    <Icon icon={PlusSignIcon} />
+                  </Button>
+                )}
               </Inline>
             </div>
             {state === 'ready' ? (
@@ -134,7 +136,10 @@ export function ProfilePanel({
                 <Skeleton width="md" />
               </Stack>
             ) : (
-              <ItemDescription>{EMPTY_HINT[section]}</ItemDescription>
+              // An empty section opens its editor too, now that there is no pencil.
+              <Editable label={`Aggiungi ${SECTION_TITLES[section].toLowerCase()}`} onClick={() => onEdit(SECTION_EDIT[section](profile))}>
+                <ItemDescription>{EMPTY_HINT[section]}</ItemDescription>
+              </Editable>
             )}
           </section>
         )
