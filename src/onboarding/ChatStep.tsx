@@ -10,16 +10,16 @@ import {
   Bubble,
   BubbleContent,
   Button,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Inline,
   Message,
   MessageContent,
   MessageGroup,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
   Spinner,
   Stack,
 } from '@skyground-media/pipelean-design-system'
@@ -28,6 +28,7 @@ import {
   ArrowUp02Icon,
   Attachment02Icon,
   Cancel01Icon,
+  Image01Icon,
   SidebarRightIcon,
 } from '@hugeicons/core-free-icons'
 import {
@@ -35,6 +36,8 @@ import {
   checkImport,
   checkLogoJob,
   createBusiness,
+  loadHistory,
+  loadLatestProposal,
   loadProfile,
   requestCreative,
   requestProposal,
@@ -67,7 +70,14 @@ const MAX_FILES = 6
 
 type Entry =
   | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
-  | { id: number; from: 'user'; text: string; files?: PickedFile[] }
+  | {
+      id: number
+      from: 'user'
+      text: string
+      files?: PickedFile[]
+      /** Attachments of a message from an earlier session: their storage paths. */
+      sentPaths?: string[]
+    }
   | { id: number; from: 'import'; job: string }
   | {
       id: number
@@ -95,8 +105,20 @@ let nextId = 0
 
 const say = (text: string, quickReplies?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies })
 
-export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: () => void }) {
-  const [entries, setEntries] = useState<Entry[]>(() => (request.source === 'website' ? [say(WAITING)] : []))
+/**
+ * The conversation of a workspace: a new one, started from the source the owner
+ * chose (`request`), or an existing one picked up where it was left (`workspaceId`).
+ */
+export function ChatStep({
+  request,
+  workspaceId,
+  onBack,
+}: {
+  request?: ImportRequest
+  workspaceId?: string
+  onBack: () => void
+}) {
+  const [entries, setEntries] = useState<Entry[]>(() => (request?.source === 'website' ? [say(WAITING)] : []))
   const [jobs, setJobs] = useState<Record<string, Job>>({})
   const [profile, setProfile] = useState<Profile>({})
   const [draft, setDraft] = useState('')
@@ -114,8 +136,30 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
 
   /** The business row, created once, on first need. */
   function businessId() {
-    business.current ??= createBusiness(request.source === 'website' ? request.target : undefined)
+    business.current ??= workspaceId
+      ? Promise.resolve(workspaceId)
+      : createBusiness(request?.source === 'website' ? request.target : undefined)
     return business.current
+  }
+
+  /** An existing workspace: its conversation so far, its profile and its latest ad. */
+  async function resume() {
+    try {
+      const [history, latest] = await Promise.all([loadHistory(await businessId()), loadLatestProposal(await businessId())])
+      const restored: Entry[] = history.map((item) =>
+        item.from === 'user'
+          ? { id: nextId++, from: 'user', text: item.text, sentPaths: item.attachments }
+          : say(item.text, item.choices.length ? item.choices : undefined),
+      )
+      // The ad was already proposed: shown again, never proposed by itself a second time.
+      proposed.current = !!latest
+      if (latest) restored.push({ id: nextId++, from: 'proposal', proposal: latest.proposal, creative: latest.creative })
+      setEntries(restored.length ? restored : [say('Ciao di nuovo! Da dove riprendiamo?')])
+    } catch (error) {
+      console.error(error)
+      setEntries([say(AGENT_DOWN)])
+    }
+    await refreshProfile()
   }
 
   /** The panel reads the database: imports and the agent both write there. */
@@ -256,7 +300,8 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
   useEffect(() => {
     if (opened.current) return
     opened.current = true
-    if (request.source === 'website') void runImport(undefined, displayUrl(request.target))
+    if (workspaceId) void resume()
+    else if (request?.source === 'website') void runImport(undefined, displayUrl(request.target))
     else void agentTurn({ event: EVENTS.noWebsite })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
   }, [])
@@ -336,21 +381,22 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
               </Button>
             )}
             <span className="profile-toggle">
-              <Sheet>
-                <SheetTrigger asChild>
+              {/* On a phone the profile comes up from the bottom. */}
+              <Drawer>
+                <DrawerTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Icon icon={SidebarRightIcon} />
                     Profilo
                   </Button>
-                </SheetTrigger>
-                <SheetContent side="right">
-                  <SheetHeader>
-                    <SheetTitle>Profilo dell'attività</SheetTitle>
-                    <SheetDescription>Quello che Spark sa finora.</SheetDescription>
-                  </SheetHeader>
+                </DrawerTrigger>
+                <DrawerContent>
+                  <DrawerHeader>
+                    <DrawerTitle>Profilo dell'attività</DrawerTitle>
+                    <DrawerDescription>Quello che Spark sa finora.</DrawerDescription>
+                  </DrawerHeader>
                   <div className="sheet-body">{panel(false)}</div>
-                </SheetContent>
-              </Sheet>
+                </DrawerContent>
+              </Drawer>
             </span>
           </Inline>
         </header>
@@ -362,6 +408,7 @@ export function ChatStep({ request, onBack }: { request: ImportRequest; onBack: 
                 <Message key={entry.id} align="end">
                   <MessageContent>
                     {entry.files && entry.files.length > 0 && <SentFiles files={entry.files} />}
+                    {entry.sentPaths && entry.sentPaths.length > 0 && <SentPaths paths={entry.sentPaths} />}
                     {entry.text && (
                       <Bubble variant="tinted" align="end">
                         <BubbleContent>{entry.text}</BubbleContent>
@@ -586,6 +633,28 @@ function SentFiles({ files }: { files: PickedFile[] }) {
         </AttachmentGroup>
       )}
     </>
+  )
+}
+
+/** Attachments of a message from an earlier session, by name. */
+function SentPaths({ paths }: { paths: string[] }) {
+  return (
+    <AttachmentGroup>
+      {paths.map((path) => {
+        const file = new File([], path.split('/').pop() ?? path)
+        const document = documentKind(file)
+        return (
+          <Attachment key={path} size="sm">
+            <AttachmentMedia variant="icon">
+              <Icon icon={document ? documentIcon(file) : Image01Icon} />
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>{document ? `Documento ${document.toUpperCase()}` : 'Immagine'}</AttachmentTitle>
+            </AttachmentContent>
+          </Attachment>
+        )
+      })}
+    </AttachmentGroup>
   )
 }
 

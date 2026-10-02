@@ -14,7 +14,7 @@ import {
   RadioGroupItem,
   Stack,
 } from '@skyground-media/pipelean-design-system'
-import { Globe02Icon, Chatting01Icon } from '@hugeicons/core-free-icons'
+import { ArrowLeft02Icon, Globe02Icon, Chatting01Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { FallingBooksIcon } from './FallingBooksIcon.tsx'
 import { Icon } from './Icon.tsx'
@@ -26,7 +26,14 @@ const OPTIONS: { value: Source; title: string; description: string; icon: IconSv
   { value: 'none', title: 'Non ho un sito', description: 'Parti da una breve chat', icon: Chatting01Icon },
 ]
 
-export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest) => void }) {
+export function SourceStep({
+  onContinue,
+  onBack,
+}: {
+  onContinue: (request: ImportRequest) => void
+  /** Back to the workspaces. */
+  onBack: () => void
+}) {
   const [source, setSource] = useState<Source>('website')
   const [website, setWebsite] = useState('')
   const inputs = useRef<Partial<Record<Source, HTMLInputElement | null>>>({})
@@ -85,6 +92,12 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
       </div>
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
+          <div>
+            <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+              <Icon icon={ArrowLeft02Icon} />
+              I tuoi workspace
+            </Button>
+          </div>
           <Stack gap={4} align={{ base: 'center', lg: 'start' }}>
             <FallingBooksIcon size={48} />
             <div className="page-heading">

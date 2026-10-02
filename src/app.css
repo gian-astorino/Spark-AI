@@ -172,7 +172,9 @@ h6 {
     0 6px 20px color-mix(in oklch, var(--foreground) 8%, transparent);
 }
 
+/* The profile inside the mobile drawer: it scrolls, the drawer's header stays. */
 .sheet-body {
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -938,4 +940,33 @@ h6 {
 
 .markdown ol {
   list-style: decimal;
+}
+
+/* ---------- Account: sign-in and workspaces ---------- */
+
+.form-notice {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--muted-foreground);
+}
+
+.workspace-row {
+  flex-wrap: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-row:hover {
+  background: var(--muted);
+}
+
+.workspace-row [data-slot='item-title'] {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.account-email {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
 }

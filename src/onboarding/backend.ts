@@ -1,6 +1,6 @@
 // Everything the onboarding asks of Supabase.
 
-import { ensureSession, supabase } from '../lib/supabase.ts'
+import { currentUser, supabase } from '../lib/supabase.ts'
 import { contentType } from './attachments.ts'
 import type { HoursRow, Profile } from './profile.ts'
 
@@ -24,7 +24,7 @@ export interface ImportProgress {
 }
 
 export async function createBusiness(websiteUrl?: string): Promise<string> {
-  const user = await ensureSession()
+  const user = await currentUser()
   const { data, error } = await supabase
     .from('businesses')
     .insert({ owner_id: user.id, website_url: websiteUrl ?? null })
@@ -285,4 +285,79 @@ function formatPrice(cents: number, currency: string) {
     currency,
     minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
   }).format(cents / 100)
+}
+
+/** A workspace is one business: its profile, its chat, its calls and ads. */
+export interface Workspace {
+  id: string
+  name?: string
+  sector?: string
+  completed: boolean
+  websiteUrl?: string
+  updatedAt: string
+}
+
+export async function listWorkspaces(): Promise<Workspace[]> {
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('id, name, sector, onboarding_status, website_url, updated_at')
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name ?? undefined,
+    sector: row.sector ?? undefined,
+    completed: row.onboarding_status === 'completed',
+    websiteUrl: row.website_url ?? undefined,
+    updatedAt: row.updated_at,
+  }))
+}
+
+/** One message of a past conversation, as it was shown. */
+export type HistoryEntry =
+  | { from: 'user'; text: string; attachments: string[] }
+  | { from: 'agent'; text: string; choices: string[] }
+
+/** The workspace's conversation so far: what the owner wrote and Spark's replies (the app's own notes are left out). */
+export async function loadHistory(businessId: string): Promise<HistoryEntry[]> {
+  const { data: conversation } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!conversation) return []
+  const { data, error } = await supabase
+    .from('messages')
+    .select('role, display')
+    .eq('conversation_id', conversation.id)
+    .not('display', 'is', null)
+    .order('created_at')
+  if (error) throw error
+  return (data ?? []).flatMap((row): HistoryEntry[] => {
+    const display = row.display as { text?: string; attachments?: string[]; choices?: string[] }
+    if (row.role === 'user') return [{ from: 'user', text: display.text ?? '', attachments: display.attachments ?? [] }]
+    return display.text ? [{ from: 'agent', text: display.text, choices: display.choices ?? [] }] : []
+  })
+}
+
+/** The latest first-ad proposal of a workspace, with its image if it was made. */
+export async function loadLatestProposal(
+  businessId: string,
+): Promise<{ id: string; proposal: AdProposal; creative: string | null } | null> {
+  const { data } = await supabase
+    .from('ad_proposals')
+    .select('id, content, creative_path')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  let creative: string | null = null
+  if (data.creative_path) {
+    const { data: signed } = await supabase.storage.from('creatives').createSignedUrl(data.creative_path, 60 * 60)
+    creative = signed?.signedUrl ?? null
+  }
+  return { id: data.id, proposal: data.content as AdProposal, creative }
 }

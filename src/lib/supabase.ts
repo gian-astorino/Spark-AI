@@ -7,11 +7,9 @@ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_KCRVfsn517h-o2L9s2XYug_I225SjsG
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
 
-/** Everyone gets a session straight away; an email can be attached later. */
-export async function ensureSession() {
+/** The signed-in user: Spark is used with an account, every workspace belongs to one. */
+export async function currentUser() {
   const { data } = await supabase.auth.getSession()
-  if (data.session) return data.session.user
-  const { data: signedIn, error } = await supabase.auth.signInAnonymously()
-  if (error || !signedIn.user) throw error ?? new Error('Could not start a session')
-  return signedIn.user
+  if (!data.session || data.session.user.is_anonymous) throw new Error('Not signed in')
+  return data.session.user
 }
