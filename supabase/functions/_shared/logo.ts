@@ -202,7 +202,7 @@ async function startBoard(db: SupabaseClient, businessId: string, logo: string, 
     heading || body
       ? `3. The fonts the brand uses on its website: ${[heading && `heading font "${heading}"`, body && `body font "${body}"`].filter(Boolean).join(' and ')}${heading && body ? '' : ', and a matching one for the other role (sans-serif preferred)'}. Each shown with its name written exactly so and a short sample ("Aa" and the alphabet), set in that typeface.`
       : "3. The fonts: a heading font and a body font that suit the logo and the sector, each shown with its name and a short sample (\"Aa\" and the alphabet). Prefer sans-serif fonts; use a serif only if the logo's own lettering clearly is one.",
-    "4. A pattern made from the logo's mark or its shapes, in the brand colours, shown as a large tile.",
+    '4. A simple complementary pattern / brand texture.',
     'Nothing else: no photographs, mockups, products, people, taglines, slogans, extra words or watermarks. Flat, sharp, professional, like a page of a brand guidelines book.',
   ].join('\n')
   return await startImageJob({ prompt, images: [logo], action: 'edit', size: BOARD_SIZE, background: 'opaque' })
