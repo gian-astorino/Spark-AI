@@ -36,7 +36,7 @@ h6 {
   /* The DS's scale stops at --text-lg (18px): no token for a page title yet. */
   font-size: clamp(1.5rem, 1.3rem + 0.8vw, 1.75rem); /* 24px on phones, 28px on desktop */
   line-height: var(--leading-tight);
-  font-weight: var(--font-weight-medium);
+  font-weight: 700; /* bold: the DS exports only normal (400) and medium (500) */
   letter-spacing: var(--tracking-tight);
   text-wrap: balance;
 }
