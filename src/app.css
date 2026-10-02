@@ -80,10 +80,16 @@ h6 {
     grid-template-columns: 1fr 1fr;
   }
 
+  /* The left column stays put, a screen tall, while the right one scrolls. */
   .welcome-aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
     display: grid;
     place-items: center;
+    height: 100dvh;
     padding: 2rem;
+    box-sizing: border-box;
     background: var(--muted);
   }
 
