@@ -17,6 +17,16 @@
 
 /* ---------- Headings (the DS has no type scale yet) ---------- */
 
+/* On this site every heading is set in Plus Jakarta Sans, the DS's own included. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+}
+
 .page-heading {
   text-align: center;
 }
