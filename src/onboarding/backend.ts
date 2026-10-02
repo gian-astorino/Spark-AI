@@ -406,7 +406,8 @@ export async function loadLatestProposal(
     .select('id, content, creative_path')
     .eq('business_id', businessId)
     .eq('proposal_status', 'done')
-    .not('content', 'is', null)
+    // Only campaigns in the current format: older proposals are not shown.
+    .eq('content->>version', '2')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
