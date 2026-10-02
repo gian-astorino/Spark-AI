@@ -203,6 +203,26 @@ async function startBoard(db: SupabaseClient, businessId: string, logo: string, 
 // The largest size gpt-image-2.5 makes without going experimental (above 2560x1440).
 const BOARD_SIZE = '2560x1440'
 
+/**
+ * A new brand board from the profile as it is: its current logo and palette.
+ * The logo stays as it is.
+ */
+export async function refreshBoard(db: SupabaseClient, businessId: string) {
+  const [{ data: brand }, { data: colors }] = await Promise.all([
+    db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle(),
+    db.from('brand_colors').select('hex').eq('business_id', businessId).order('position'),
+  ])
+  if (!brand?.logo_path || brand.logo_path.endsWith('.svg')) throw new Error('No raster logo to build a board on')
+  const { data: file } = await db.storage.from('logos').download(brand.logo_path)
+  if (!file) throw new Error(`Logo not found in storage: ${brand.logo_path}`)
+  const flat = await flattenForModels(new Uint8Array(await file.arrayBuffer()), file.type || 'image/png')
+  const jobId = await startBoard(db, businessId, dataUrl(flat.type, flat.bytes), (colors ?? []).map((color) => color.hex))
+  await db
+    .from('brand_profiles')
+    .update({ board_job_id: jobId, board_job_status: 'running', board_error: null })
+    .eq('business_id', businessId)
+}
+
 /** Where the brand board stands; once its job is done, stores it next to the logo. */
 export async function checkBoard(db: SupabaseClient, businessId: string): Promise<string> {
   const { data: brand } = await db

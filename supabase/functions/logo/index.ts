@@ -2,6 +2,7 @@
 //
 //   { business_id }          (internal, x-logo-token header) refreshes the logo:
 //                            colours now, the recreation as a background job.
+//   { business_id, board }   (internal) a new brand board only, logo untouched.
 //   { business_id, check }   (the owner's session) reports the recreation and,
 //                            once it is done, keeps it or not. The app calls
 //                            this every few seconds while it runs.
@@ -10,7 +11,7 @@
 // internal call carries a token of its own, the check is verified here.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { checkBoard, checkLogo, refreshLogo } from '../_shared/logo.ts'
+import { checkBoard, checkLogo, refreshBoard, refreshLogo } from '../_shared/logo.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +20,7 @@ const cors = {
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors })
-  const { business_id, check } = await request.json().catch(() => ({}))
+  const { business_id, check, board } = await request.json().catch(() => ({}))
   if (typeof business_id !== 'string') return json({ error: 'business_id is required' }, 400)
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
@@ -43,6 +44,15 @@ Deno.serve(async (request) => {
   }
 
   if (!internal) return json({ error: 'Forbidden' }, 403)
+  // { business_id, board: true }: a new brand board only, from the current logo and palette.
+  if (board) {
+    try {
+      await refreshBoard(db, business_id)
+      return json({ board: 'running' }, 202)
+    } catch (failure) {
+      return json({ error: String(failure) }, 400)
+    }
+  }
   // Starts the recreation, then follows it for as long as this function may
   // run; if the image takes longer, the agent's turns and the app move it on.
   EdgeRuntime.waitUntil(
