@@ -853,22 +853,25 @@ h6 {
 
 .spark-logo-mark {
   flex: none;
-  width: 4rem;
-  height: 4rem;
+  width: 6rem;
+  height: 6rem;
   color: #b3306a;
 }
 
 .spark-logo-name {
   margin: 0;
   font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
-  font-size: clamp(2.5rem, 1rem + 2.5vw, 3.5rem);
+  font-size: clamp(3rem, 1rem + 3.5vw, 4.5rem);
   font-weight: 800;
   line-height: 1;
   letter-spacing: var(--tracking-tight);
   color: var(--foreground);
 }
 
-.spark-logo-name span {
-  font-weight: 500;
+.spark-logo-by {
+  margin: 0.5rem 0 0;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
   color: var(--muted-foreground);
 }

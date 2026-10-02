@@ -15,9 +15,10 @@ export function SparkLogo() {
           <path key={d} d={d} fill="currentColor" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" />
         ))}
       </svg>
-      <p className="spark-logo-name">
-        Spark <span>by Skyground</span>
-      </p>
+      <div>
+        <p className="spark-logo-name">Spark</p>
+        <p className="spark-logo-by">by Skyground</p>
+      </div>
     </div>
   )
 }
