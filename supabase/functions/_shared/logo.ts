@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { PREVIEW_CRAWLER } from './firecrawl.ts'
+import { isPlatform, siteColors } from './branding.ts'
+import { PREVIEW_CRAWLER, scrape } from './firecrawl.ts'
+import { flattenForModels, isFlat } from './flatten.ts'
 import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 
 // Every logo that enters the profile gives the brand its colours and is
@@ -17,6 +19,8 @@ import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 // decoded in the function (its CPU budget is two seconds).
 
 const VISION_MODEL = 'gpt-5.5'
+// A 1024px recreation smaller than this is a flat, empty square.
+const BLANK_BYTES = 8_000
 const CANDIDATE_BYTES = 5_000_000
 
 const openai = new OpenAI() // OPENAI_API_KEY from the function's secrets
@@ -45,7 +49,7 @@ export function requestLogoRefresh(businessId: string) {
 export async function refreshLogo(db: SupabaseClient, businessId: string) {
   const { data: brand } = await db
     .from('brand_profiles')
-    .select('logo_path, logo_source_url')
+    .select('logo_path, logo_source_url, site_colors, fonts')
     .eq('business_id', businessId)
     .maybeSingle()
   if (!brand?.logo_path) return
@@ -62,10 +66,17 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
     const original = `${businessId}/original.${extension}`
     await db.storage.from('logos').upload(original, file, { contentType: file.type, upsert: true })
 
-    // 1. Colours, from the original.
+    // 1. Colours, from the original (a transparent one laid on a solid background first).
     let colors: string[] = []
     try {
-      colors = isSvg ? svgColors(await file.text()) : await imageColors(db, original)
+      if (isSvg) {
+        colors = svgColors(await file.text())
+      } else {
+        const flat = await flattenForModels(new Uint8Array(await file.arrayBuffer()), file.type || 'image/png')
+        colors = await imageColors(dataUrl(flat.type, flat.bytes), flat.background)
+      }
+      // A logo of one or two colours (a black wordmark) leaves room: the site's colours complete the palette.
+      colors = withSiteColors(colors, (brand.site_colors as Record<string, string> | null) ?? (await readSiteColors(db, businessId)))
       await saveColors(db, businessId, colors)
     } catch (failure) {
       failures.push(`colours: ${String(failure)}`)
@@ -90,18 +101,22 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
           upsert: true,
         })
       }
+      // What the models see: on a solid background if the logo is transparent.
+      const flat = await flattenForModels(source, type)
+      const seen = dataUrl(flat.type, flat.bytes)
       update.logo_job_id = await startImageJob({
         prompt: REDRAW,
-        images: [dataUrl(type, source)],
+        images: [seen],
         action: 'edit',
         // No inputFidelity: gpt-image-2.5 rejects it; the prompt and the check keep it faithful.
-        background: 'auto',
+        // Opaque: a transparent result lost its alpha on the way and came back a black square.
+        background: 'opaque',
       })
       update.logo_job_status = 'running'
 
       // 3. The brand board, from the same picture of the logo.
       try {
-        update.board_job_id = await startBoard(db, businessId, dataUrl(type, source), colors)
+        update.board_job_id = await startBoard(db, businessId, seen, colors, (brand.fonts as BrandFont[] | null) ?? [])
         update.board_job_status = 'running'
         update.board_error = null
       } catch (failure) {
@@ -148,9 +163,12 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
   }
 
   const { data: original } = await db.storage.from('logos').download(brand.logo_path)
-  const verdict = original
-    ? await sameLogo(new Uint8Array(await original.arrayBuffer()), state.png)
-    : { same: false, difference: 'the original could not be read' }
+  const verdict =
+    state.png.byteLength < BLANK_BYTES || (await isFlat(state.png))
+      ? { same: false, difference: 'the recreation is a blank image of one colour' }
+      : original
+        ? await sameLogo((await flattenForModels(new Uint8Array(await original.arrayBuffer()), original.type || 'image/png')).bytes, state.png)
+        : { same: false, difference: 'the original could not be read' }
   if (!verdict.same) {
     // Kept for a look: what the model made, and why it was turned down.
     await db.storage.from('logos').upload(`${businessId}/logo-rejected.png`, state.png, { contentType: 'image/png', upsert: true })
@@ -167,14 +185,23 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
 }
 
 /** Starts the brand board: the logo as the reference, the sector and colours in the prompt. */
-async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[]) {
+interface BrandFont {
+  role: 'heading' | 'body'
+  family: string
+}
+
+async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[], fonts: BrandFont[]) {
+  const heading = fonts.find((font) => font.role === 'heading')?.family
+  const body = fonts.find((font) => font.role === 'body')?.family
   const { data: business } = await db.from('businesses').select('name, sector').eq('id', businessId).maybeSingle()
   const prompt = [
     `Design a brand board for ${business?.name ? `"${business.name}", ` : ''}a business${business?.sector ? ` in the ${business.sector} sector` : ''} in Italy, built around the attached logo.`,
     'The board contains only these four elements, laid out cleanly on a calm background with generous white space:',
     '1. The logo, exactly as attached: the same shapes, lettering and colours, never redrawn or restyled.',
-    `2. The colour palette as swatches${colors.length ? `: ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
-    "3. The fonts: a heading font and a body font that suit the logo and the sector, each shown with its name and a short sample (\"Aa\" and the alphabet). Prefer sans-serif fonts; use a serif only if the logo's own lettering clearly is one.",
+    `2. The colour palette as swatches${colors.length ? `: exactly these colours, ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
+    heading || body
+      ? `3. The fonts the brand uses on its website: ${[heading && `heading font "${heading}"`, body && `body font "${body}"`].filter(Boolean).join(' and ')}${heading && body ? '' : ', and a matching one for the other role (sans-serif preferred)'}. Each shown with its name written exactly so and a short sample ("Aa" and the alphabet), set in that typeface.`
+      : "3. The fonts: a heading font and a body font that suit the logo and the sector, each shown with its name and a short sample (\"Aa\" and the alphabet). Prefer sans-serif fonts; use a serif only if the logo's own lettering clearly is one.",
     "4. A pattern made from the logo's mark or its shapes, in the brand colours, shown as a large tile.",
     'Nothing else: no photographs, mockups, products, people, taglines, slogans, extra words or watermarks. Flat, sharp, professional, like a page of a brand guidelines book.',
   ].join('\n')
@@ -207,6 +234,49 @@ export async function checkBoard(db: SupabaseClient, businessId: string): Promis
   return 'done'
 }
 
+/**
+ * The logo's colours, completed up to three with the site's: its primary,
+ * accent and secondary colours first, then the rest; never a colour close to
+ * one already in, nor the page's white or near-white background.
+ */
+function withSiteColors(logo: string[], site: Record<string, string> | null): string[] {
+  if (!site || logo.length >= 3) return logo
+  const order = ['primary', 'accent', 'secondary', 'link']
+  const candidates = [
+    ...order.map((role) => site[role]).filter(Boolean),
+    ...Object.entries(site)
+      .filter(([role]) => !order.includes(role) && !/background|text/i.test(role))
+      .map(([, hex]) => hex),
+  ]
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+  const palette = [...logo]
+  for (const hex of candidates) {
+    if (palette.length >= 3) break
+    const [r, g, b] = rgb(hex)
+    if (r > 240 && g > 240 && b > 240) continue
+    const close = palette.some((other) => {
+      const [or, og, ob] = rgb(other)
+      return Math.abs(r - or) + Math.abs(g - og) + Math.abs(b - ob) < 60
+    })
+    if (!close) palette.push(hex.toUpperCase())
+  }
+  return palette
+}
+
+/** For a profile from before the site's colours were kept: read them once from its home page. */
+async function readSiteColors(db: SupabaseClient, businessId: string): Promise<Record<string, string> | null> {
+  const { data: business } = await db.from('businesses').select('website_url').eq('id', businessId).maybeSingle()
+  if (!business?.website_url || isPlatform(business.website_url)) return null
+  try {
+    const colors = siteColors((await scrape(business.website_url, true)).branding)
+    await db.from('brand_profiles').update({ site_colors: colors }).eq('business_id', businessId)
+    return colors
+  } catch (failure) {
+    console.error('Could not read the site colours', failure)
+    return null
+  }
+}
+
 async function saveColors(db: SupabaseClient, businessId: string, colors: string[]) {
   if (colors.length === 0) throw new Error('No colours found in the logo')
   await db.from('brand_colors').delete().eq('business_id', businessId)
@@ -233,7 +303,7 @@ const REDRAW = [
   'Recreate this exact logo as a clean, sharp, high-resolution square image.',
   'Keep the design identical: the same shapes, the same lettering letter by letter, the same colours and proportions.',
   'Do not add, remove, restyle or reinterpret anything; no outlines, shadows or effects that are not in the original.',
-  "Keep the original's background exactly as it is: the same colour, or transparent if the original is transparent. Extend it to fill the square, with the logo centred and even padding.",
+  "Keep the background exactly as it is in the image: the same solid colour. Extend it to fill the square, with the logo centred and even padding.",
 ].join(' ')
 
 /** Whether the recreated logo is still the same logo, as the vision model sees it. */
@@ -377,10 +447,12 @@ function svgColors(svg: string): string[] {
   return picked
 }
 
-/** The brand colours of a raster logo, as the vision model reads them. SVG and HEIC are not readable. */
-async function imageColors(db: SupabaseClient, path: string): Promise<string[]> {
-  const { data } = await db.storage.from('logos').createSignedUrl(path, 10 * 60)
-  if (!data) return []
+/**
+ * The brand colours of a raster logo, as the vision model reads them. SVG and
+ * HEIC are not readable. `background` is the one laid under a transparent
+ * logo: not a brand colour.
+ */
+async function imageColors(image: string, background?: string): Promise<string[]> {
   const response = await openai.responses.create({
     model: VISION_MODEL,
     reasoning: { effort: 'low' },
@@ -390,9 +462,11 @@ async function imageColors(db: SupabaseClient, path: string): Promise<string[]> 
         content: [
           {
             type: 'input_text',
-            text: 'List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. A solid coloured background is part of the brand and counts; ignore only a plain white or transparent background.',
+            text: background
+              ? `List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. The logo has a transparent background, shown here on ${background}: that background is not a brand colour.`
+              : 'List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. A solid coloured background is part of the brand and counts; ignore only a plain white or transparent background.',
           },
-          { type: 'input_image', image_url: data.signedUrl, detail: 'high' },
+          { type: 'input_image', image_url: image, detail: 'high' },
         ],
       },
     ],

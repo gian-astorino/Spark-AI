@@ -2,8 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Branding } from './firecrawl.ts'
 import { requestLogoRefresh } from './logo.ts'
 
-// Branding from a business's own home page: logo and fonts. The brand
-// colours are then read from the logo (see logo.ts).
+// Branding from a business's own home page: logo, fonts and the site's
+// colours. The brand colours are then read from the logo and completed with
+// the site's (see logo.ts).
 // Used by the import (from the link it starts with) and by the research
 // (from the official site it finds).
 
@@ -50,6 +51,15 @@ function brandFonts(branding: Branding): Font[] {
   return clean.filter((font, index) => clean.findIndex((other) => other.role === font.role) === index)
 }
 
+/** The site's colours by their role, hex only. */
+export function siteColors(branding: Branding | undefined): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(branding?.colors ?? {})
+      .filter(([, value]) => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value))
+      .map(([role, value]) => [role, value.toUpperCase()]),
+  )
+}
+
 export async function saveBranding(db: SupabaseClient, businessId: string, branding: Branding | undefined) {
   if (!branding) return
   const logo = branding.logo ? await storeLogo(db, businessId, branding.logo) : null
@@ -72,9 +82,10 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
         }
       : {}),
     fonts: brandFonts(branding),
+    site_colors: siteColors(branding),
     source: 'import',
   })
-  // The brand colours come from the logo, not from the site's CSS.
+  // The brand colours come from the logo first, completed by the site's.
   if (logo) requestLogoRefresh(businessId)
 }
 
