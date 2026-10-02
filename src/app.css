@@ -963,16 +963,6 @@ h6 {
   color: var(--muted-foreground);
 }
 
-/* The campaign's lists: KPIs, missing data. */
-.ad-list {
-  margin: 0;
-  padding-left: 1.25rem;
-  list-style: disc;
-  font-size: var(--text-sm);
-  line-height: var(--text-sm--line-height);
-  color: var(--muted-foreground);
-}
-
 /* The message of an error the app could not render past. */
 .error-detail {
   margin: 0;

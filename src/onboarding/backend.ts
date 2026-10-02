@@ -93,7 +93,7 @@ export const CALENDARS: Record<string, string> = {
 
 /** The first campaign, as the strategist decided it over the whole context (see proposal/index.ts). */
 export interface AdProposal {
-  version: 2
+  version: 3
   campaign: {
     product: string
     catalog_item: string | null
@@ -102,32 +102,13 @@ export interface AdProposal {
     target: string
     problem: string
     angle: string
-    big_idea: string
-    headline: string
-    promise: string
-    cta: string
   }
   /** The promoted catalog item, matched to the catalog, with its list price. */
   item: { name: string; list_price_eur: number | null } | null
+  cpl: { estimate_eur: number; reasoning: string }
   awareness: string
-  why: string
-  funnel: string
-  creative: { format: string; hero_visual: string; hierarchy: string; copy_on_image: string }
-  concepts: { concept: string; headline: string; visual: string; copy: string; cta: string }[]
-  budget: { daily_eur: number; days: number; total_eur: number; note: string }
-  kpis: string[]
-  test_rules: { first: string; no_interest: string; leads_no_appointments: string; appointments_no_sales: string }
-  confidence: { level: 'HIGH' | 'MEDIUM' | 'LOW'; reason: string }
-  missing_data: string[]
-  ad: { primary_text: string; headline: string; description: string; cta: string }
-  audience: {
-    age_min: number
-    age_max: number
-    genders: 'all' | 'women' | 'men'
-    radius_km: number | null
-    area: string
-    interests: string[]
-  }
+  creative: { format: string; hero_visual: string; copy_on_image: string }
+  ad: { primary_text: string; headline: string; cta: string }
 }
 
 /**
@@ -407,7 +388,7 @@ export async function loadLatestProposal(
     .eq('business_id', businessId)
     .eq('proposal_status', 'done')
     // Only campaigns in the current format: older proposals are not shown.
-    .eq('content->>version', '2')
+    .eq('content->>version', '3')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
