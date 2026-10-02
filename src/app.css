@@ -431,8 +431,12 @@ h6 {
 
 .tone {
   margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  /* The business's own voice, set apart: Cormorant Garamond, a touch larger
+     as its small x-height reads small at the body size. */
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .hours-grid {
