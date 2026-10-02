@@ -439,6 +439,12 @@ h6 {
   line-height: 1.55;
 }
 
+/* The tone's keywords in the same voice as its text (the DS badge takes no class of ours). */
+.tone-keywords [data-slot='badge'] {
+  font-family: 'Roboto Serif', Georgia, serif;
+  font-style: italic;
+}
+
 .hours-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

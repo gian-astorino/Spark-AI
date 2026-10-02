@@ -326,13 +326,15 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
           <Stack gap={2}>
             {b.toneDescription && <p className="tone">{b.toneDescription}</p>}
             {b.tone.length > 0 && (
-              <Inline gap={2}>
-                {b.tone.map((word) => (
-                  <Badge key={word} variant="secondary">
-                    {word}
-                  </Badge>
-                ))}
-              </Inline>
+              <div className="tone-keywords">
+                <Inline gap={2}>
+                  {b.tone.map((word) => (
+                    <Badge key={word} variant="secondary">
+                      {word}
+                    </Badge>
+                  ))}
+                </Inline>
+              </div>
             )}
           </Stack>
         </Editable>
