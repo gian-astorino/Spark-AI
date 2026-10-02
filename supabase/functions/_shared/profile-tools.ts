@@ -40,7 +40,7 @@ export const DEFS: ToolDef[] = [
       properties: {
         name: nullable('string', 'Business name'),
         description: nullable('string', 'What the business does, one or two sentences'),
-        sector: nullable('string', 'Short label in Italian, e.g. "Centro estetico", "Parrucchiere"'),
+        sector: nullable('string', 'Short label in Italian, e.g. "Ristorante", "Studio dentistico", "Centro estetico", "Negozio di abbigliamento"'),
       },
       required: ['name', 'description', 'sector'],
       additionalProperties: false,
@@ -64,7 +64,7 @@ export const DEFS: ToolDef[] = [
   {
     name: 'save_catalog_items',
     description:
-      'Add treatments or services, or update ones already in the catalog (matched by name). Null leaves a field as it is.',
+      'Add catalog items (the products or services the business sells), or update ones already in the catalog (matched by name). Null leaves a field as it is.',
     input_schema: {
       type: 'object',
       properties: {
@@ -75,9 +75,9 @@ export const DEFS: ToolDef[] = [
             properties: {
               name: { type: 'string' },
               description: nullable('string', 'Short description'),
-              category: nullable('string', 'e.g. "Viso", "Corpo"'),
+              category: nullable('string', 'The group it belongs to in the business\'s own catalog, price list or menu'),
               price_eur: nullable('number', 'Price in euro'),
-              duration_minutes: nullable('integer', 'Duration in minutes'),
+              duration_minutes: nullable('integer', 'Duration in minutes, for a service; null for a product'),
             },
             required: ['name', 'description', 'category', 'price_eur', 'duration_minutes'],
             additionalProperties: false,
@@ -90,7 +90,7 @@ export const DEFS: ToolDef[] = [
   },
   {
     name: 'remove_catalog_item',
-    description: 'Remove a treatment the owner says they do not offer.',
+    description: 'Remove a catalog item the owner says they do not offer.',
     input_schema: {
       type: 'object',
       properties: { name: { type: 'string' } },
@@ -209,7 +209,7 @@ export const DEFS: ToolDef[] = [
   {
     name: 'add_photos',
     description:
-      'Keep attached images as photos of the business (the place, the team, treatments, results) for its profile and marketing. Not for screenshots or documents that only carried information.',
+      'Keep attached images as photos of the business (the place, the team, its products or its work) for its profile and marketing. Not for screenshots or documents that only carried information.',
     input_schema: {
       type: 'object',
       properties: {
@@ -383,7 +383,7 @@ export async function runTool(
     case 'remove_catalog_item': {
       const { data: existing } = await db.from('catalog_items').select('id, name').eq('business_id', businessId)
       const match = existing?.find((item) => key(item.name) === key(String(input.name)))
-      if (!match) return 'No treatment with that name.'
+      if (!match) return 'No catalog item with that name.'
       await check(db.from('catalog_items').delete().eq('id', match.id))
       return 'Removed.'
     }

@@ -38,7 +38,7 @@ import {
 import { Markdown } from './Markdown.tsx'
 import type { CatalogItem, Conversation, Location, Profile } from './profile.ts'
 
-/** What is being edited: a section, one location or treatment, or the logo to look at. */
+/** What is being edited: a section, one location or catalog item, or the logo to look at. */
 export type Editing =
   | { kind: 'business' }
   | { kind: 'location'; location?: Location }
@@ -283,7 +283,7 @@ function BusinessForm({
       </DialogHeader>
       <Stack gap={4}>
         <TextField label="Nome" value={name} onChange={setName} />
-        <TextField label="Settore" value={sector} onChange={setSector} placeholder="Centro estetico" />
+        <TextField label="Settore" value={sector} onChange={setSector} placeholder="Di cosa si occupa l'attività" />
         <TextField label="Descrizione" value={description} onChange={setDescription} multiline />
       </Stack>
       {footer({ name, sector, description })}
@@ -425,11 +425,11 @@ function CatalogForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{item ? 'Trattamento' : 'Nuovo trattamento'}</DialogTitle>
+        <DialogTitle>{item ? 'Elemento di catalogo' : 'Nuovo elemento di catalogo'}</DialogTitle>
       </DialogHeader>
       <Stack gap={4}>
         <TextField label="Nome" value={name} onChange={setName} />
-        <TextField label="Categoria" value={category} onChange={setCategory} placeholder="Viso" />
+        <TextField label="Categoria" value={category} onChange={setCategory} />
         <Inline gap={3}>
           <TextField label="Prezzo (€)" value={price} onChange={setPrice} placeholder="70" />
           <TextField label="Durata (min)" value={duration} onChange={setDuration} placeholder="60" />

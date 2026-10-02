@@ -56,7 +56,7 @@ Deno.serve(async (request) => {
 
     // As short as it gets: the image model decides everything else.
     const prompt = [
-      `Create a simple, clean square ad for Instagram and Facebook for ${business?.name ?? 'a business'}, a ${business?.sector || 'beauty'} business in Italy.`,
+      `Create a simple, clean square ad for Instagram and Facebook for ${business?.name ?? 'a business'}${business?.sector ? `, a ${business.sector} business` : ''} in Italy.`,
       `Offer: "${treatment.name} a ${euro(offer.discounted_price_eur)} invece di ${euro(treatment.list_price_eur)} (-${offer.discount_percent}%). ${offer.conditions}"`,
       image ? 'Use the attachments to influence the visual style of the final image.' : '',
     ]

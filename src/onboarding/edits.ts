@@ -90,7 +90,7 @@ export interface CatalogFields {
   duration: string
 }
 
-/** Adds a treatment when `id` is missing. */
+/** Adds a catalog item when `id` is missing. */
 export async function saveCatalogItem(businessId: string, id: string | undefined, fields: CatalogFields) {
   const price = fields.price.trim().replace(',', '.')
   const duration = fields.duration.trim()
@@ -106,7 +106,7 @@ export async function saveCatalogItem(businessId: string, id: string | undefined
     duration_minutes: duration ? Number(duration) : null,
     source: 'manual' as const,
   }
-  if (!row.name) throw new Error('Il trattamento deve avere un nome')
+  if (!row.name) throw new Error("L'elemento di catalogo deve avere un nome")
   if (id) {
     await run(supabase.from('catalog_items').update(row).eq('id', id))
   } else {

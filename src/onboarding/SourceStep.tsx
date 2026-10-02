@@ -6,10 +6,6 @@ import {
   FieldDescription,
   FieldTitle,
   Input,
-  Item,
-  ItemContent,
-  ItemMedia,
-  ItemTitle,
   RadioGroup,
   RadioGroupItem,
   Stack,
@@ -134,27 +130,6 @@ export function SourceStep({
               ))}
             </Stack>
           </RadioGroup>
-
-          {/* Booking platforms: the surest source of the catalogue. */}
-          <Item variant="muted">
-            <ItemMedia>
-              <div className="platform-logos">
-                <ItemMedia variant="image">
-                  <img src={`${import.meta.env.BASE_URL}platforms/fresha.png`} alt="Fresha" />
-                </ItemMedia>
-                <ItemMedia variant="image">
-                  <img src={`${import.meta.env.BASE_URL}platforms/treatwell.png`} alt="Treatwell" />
-                </ItemMedia>
-              </div>
-            </ItemMedia>
-            <ItemContent>
-              <ItemTitle>Suggerito per il tuo settore</ItemTitle>
-              {/* FieldDescription, not ItemDescription: the DS clamps that one to two lines. */}
-              <FieldDescription>
-                Inserisci il tuo link di Fresha o Treatwell. Spark sincronizzerà il tuo catalogo.
-              </FieldDescription>
-            </ItemContent>
-          </Item>
 
           <div className="stretch welcome-action">
             <Button type="submit" size="lg" disabled={!canContinue}>

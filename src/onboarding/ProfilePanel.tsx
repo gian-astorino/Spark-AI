@@ -48,7 +48,7 @@ const EMPTY_HINT: Record<Section, string> = {
   location: 'Indirizzo e orari di apertura.',
   branding: 'Logo, colori, font e foto. Puoi allegarli in chat.',
   tone: 'Come la tua attività parla ai clienti.',
-  catalog: 'Trattamenti con descrizione, prezzo e durata.',
+  catalog: 'Elementi di catalogo con descrizione, prezzo e durata.',
   calendar: 'Il tuo team e il calendario che usi. Spark te lo chiederà in chat.',
 }
 
@@ -360,7 +360,7 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
           <Inline>
             <Button variant="outline" size="sm" onClick={() => onEdit({ kind: 'catalog' })}>
               <Icon icon={PlusSignIcon} />
-              Aggiungi trattamento
+              Aggiungi elemento
             </Button>
           </Inline>
         </Stack>

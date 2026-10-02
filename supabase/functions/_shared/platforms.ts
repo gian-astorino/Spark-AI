@@ -1,4 +1,25 @@
-// Readers for the booking platforms beauty businesses list on. Their pages
+/** Fresha or Treatwell, from a page's address; null for any other site. */
+export function bookingPlatform(url: string): 'Fresha' | 'Treatwell' | null {
+  let host: string
+  try {
+    host = new URL(url).hostname
+  } catch {
+    return null
+  }
+  if (/(^|\.)fresha\.com$/.test(host)) return 'Fresha'
+  if (/(^|\.)treatwell\.[a-z.]+$/.test(host)) return 'Treatwell'
+  return null
+}
+
+/**
+ * How the research treats a Fresha or Treatwell page. Given to the model only
+ * when one is involved (the link it starts from, or a page it reads), so a
+ * business of another industry never gets it. Other industries' platforms can
+ * get guides of their own the same way.
+ */
+export const PLATFORM_GUIDE = `About Fresha and Treatwell pages: for a business listed there, the page is the authority on the catalog, prices, durations and opening hours. Unless the catalog is already complete with prices, save its whole catalog in one save_catalog_items call. Once it is saved, remove with remove_catalog_item the entries from other sources that are generic duplicates of its items and have no price. When sources disagree, prefer the business's own website, then this page. Never take branding (logo, colours, fonts) from it.`
+
+// Readers for Fresha and Treatwell, booking platforms of beauty and wellness businesses. Their pages
 // show a few services on screen and load the rest on click, but the whole
 // listing is embedded in the page's data: Fresha in its Next.js state,
 // Treatwell as schema.org. Reading that data gives the complete catalog,
@@ -38,14 +59,9 @@ interface Listing {
  * carry the expected data (then the caller reads it as a normal page).
  */
 export async function readPlatform(url: string): Promise<string | null> {
-  let host: string
-  try {
-    host = new URL(url).hostname
-  } catch {
-    return null
-  }
-  const reader = /(^|\.)fresha\.com$/.test(host) ? fresha : /(^|\.)treatwell\.[a-z.]+$/.test(host) ? treatwell : null
-  if (!reader) return null
+  const platform = bookingPlatform(url)
+  if (!platform) return null
+  const reader = platform === 'Fresha' ? fresha : treatwell
   try {
     const response = await fetch(url, { headers: { 'User-Agent': BROWSER, 'Accept-Language': 'it,en;q=0.8' } })
     if (!response.ok) return null

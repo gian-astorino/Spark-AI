@@ -825,30 +825,6 @@ h6 {
   }
 }
 
-/* The platform logos of the home's suggestion card, as in Figma: a 5% border
-   and overlapping by 8px (the DS's ItemMedia has no stacked variant yet). */
-.platform-logos {
-  display: flex;
-}
-
-.platform-logos > [data-slot='item-media'] {
-  position: relative;
-}
-
-/* The border is drawn over the image, inside its edge, not around it. */
-.platform-logos > [data-slot='item-media']::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1px solid color-mix(in oklch, var(--foreground) 5%, transparent);
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.platform-logos > [data-slot='item-media'] + [data-slot='item-media'] {
-  margin-left: -0.5rem;
-}
-
 /* Spark's logo in the home's left column: the filled sparkles in the brand's
    magenta, the name in Plus Jakarta Sans. */
 .spark-logo {

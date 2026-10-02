@@ -100,7 +100,7 @@ export function AdPreview({
       </article>
 
       <dl className="rows ad-facts">
-        <Fact label="Trattamento" value={treatment.name} detail={treatment.why} />
+        <Fact label="Elemento di catalogo" value={treatment.name} detail={treatment.why} />
         <Fact
           label="Offerta"
           value={`${euro(offer.discounted_price_eur)} invece di ${euro(treatment.list_price_eur)}`}
