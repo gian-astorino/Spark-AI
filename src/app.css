@@ -431,9 +431,9 @@ h6 {
 
 .tone {
   margin: 0;
-  /* The business's own voice, set apart in Playfair Display. */
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 0.9375rem;
+  /* The business's own voice, set apart in Roboto Serif. */
+  font-family: 'Roboto Serif', Georgia, serif;
+  font-size: 0.875rem;
   font-weight: 400;
   line-height: 1.55;
 }
