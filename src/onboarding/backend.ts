@@ -295,15 +295,30 @@ export interface Workspace {
   completed: boolean
   websiteUrl?: string
   updatedAt: string
+  /** Seen by admins: whose workspace it is. */
+  ownerEmail?: string
 }
 
-export async function listWorkspaces(): Promise<Workspace[]> {
-  const { data, error } = await supabase
-    .from('businesses')
-    .select('id, name, sector, onboarding_status, website_url, updated_at')
-    .order('updated_at', { ascending: false })
+/** Admins see every workspace; everyone else has their own one. */
+export async function isAdmin(): Promise<boolean> {
+  const user = await currentUser()
+  const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle()
+  return !!data
+}
+
+/** The workspaces the user can reach: their own, or all of them for an admin (with their owners). */
+export async function listWorkspaces(withOwners = false): Promise<Workspace[]> {
+  const [{ data, error }, owners] = await Promise.all([
+    supabase
+      .from('businesses')
+      .select('id, name, sector, onboarding_status, website_url, updated_at')
+      .order('updated_at', { ascending: false }),
+    withOwners ? supabase.rpc('workspace_owners') : Promise.resolve({ data: [] }),
+  ])
   if (error) throw error
+  const emails = new Map(((owners.data ?? []) as { business_id: string; email: string }[]).map((row) => [row.business_id, row.email]))
   return (data ?? []).map((row) => ({
+    ownerEmail: emails.get(row.id),
     id: row.id,
     name: row.name ?? undefined,
     sector: row.sector ?? undefined,

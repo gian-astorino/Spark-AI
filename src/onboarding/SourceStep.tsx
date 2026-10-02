@@ -31,8 +31,8 @@ export function SourceStep({
   onBack,
 }: {
   onContinue: (request: ImportRequest) => void
-  /** Back to the workspaces. */
-  onBack: () => void
+  /** Back to the workspaces (admins only: a user has just their own). */
+  onBack?: () => void
 }) {
   const [source, setSource] = useState<Source>('website')
   const [website, setWebsite] = useState('')
@@ -92,12 +92,14 @@ export function SourceStep({
       </div>
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
-          <div>
-            <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-              <Icon icon={ArrowLeft02Icon} />
-              I tuoi workspace
-            </Button>
-          </div>
+          {onBack && (
+            <div>
+              <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+                <Icon icon={ArrowLeft02Icon} />
+                Workspace
+              </Button>
+            </div>
+          )}
           <Stack gap={4} align={{ base: 'center', lg: 'start' }}>
             <FallingBooksIcon size={48} />
             <div className="page-heading">

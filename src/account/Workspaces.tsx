@@ -25,7 +25,7 @@ import { SparkLogo } from '../onboarding/SparkLogo.tsx'
 const updated = (iso: string) =>
   new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
 
-/** The account's workspaces, one per business: open one, or start a new one. */
+/** For admins: every workspace, with its owner. Open one, or start a new one. */
 export function Workspaces({
   email,
   onOpen,
@@ -39,7 +39,7 @@ export function Workspaces({
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    listWorkspaces().then(setWorkspaces, (error) => {
+    listWorkspaces(true).then(setWorkspaces, (error) => {
       console.error(error)
       setFailed(true)
     })
@@ -54,8 +54,8 @@ export function Workspaces({
         <Stack gap={8}>
           <Stack gap={2}>
             <div className="page-heading">
-              <h1>I tuoi workspace</h1>
-              <p>Ogni attività ha il suo: contesto, conversazioni e inserzioni restano lì.</p>
+              <h1>Workspace</h1>
+              <p>Tutti i workspace, uno per attività: come admin li vedi e li gestisci tutti.</p>
             </div>
           </Stack>
 
@@ -80,7 +80,9 @@ export function Workspaces({
                         {!workspace.completed && <Badge variant="secondary">Onboarding in corso</Badge>}
                       </ItemTitle>
                       <ItemDescription>
-                        {[workspace.sector, `Aggiornato il ${updated(workspace.updatedAt)}`].filter(Boolean).join(' · ')}
+                        {[workspace.ownerEmail ?? 'Account anonimo', workspace.sector, `Aggiornato il ${updated(workspace.updatedAt)}`]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>

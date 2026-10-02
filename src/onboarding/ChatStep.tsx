@@ -29,6 +29,7 @@ import {
   Attachment02Icon,
   Cancel01Icon,
   Image01Icon,
+  Logout03Icon,
   SidebarRightIcon,
 } from '@hugeicons/core-free-icons'
 import {
@@ -113,10 +114,14 @@ export function ChatStep({
   request,
   workspaceId,
   onBack,
+  onSignOut,
 }: {
   request?: ImportRequest
   workspaceId?: string
-  onBack: () => void
+  /** Back to the workspaces: admins only. */
+  onBack?: () => void
+  /** For a user, whose only place is their workspace. */
+  onSignOut?: () => void
 }) {
   const [entries, setEntries] = useState<Entry[]>(() => (request?.source === 'website' ? [say(WAITING)] : []))
   const [jobs, setJobs] = useState<Record<string, Job>>({})
@@ -371,9 +376,16 @@ export function ChatStep({
     <div className="workspace">
       <div className="chat">
         <header className="chat-header">
-          <Button variant="ghost" size="icon-sm" aria-label="Indietro" onClick={onBack}>
-            <Icon icon={ArrowLeft02Icon} />
-          </Button>
+          {onBack ? (
+            <Button variant="ghost" size="icon-sm" aria-label="Workspace" title="Workspace" onClick={onBack}>
+              <Icon icon={ArrowLeft02Icon} />
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={onSignOut}>
+              <Icon icon={Logout03Icon} />
+              Esci
+            </Button>
+          )}
           <Inline gap={3} align="center">
             {profile.catalog?.some((item) => item.priceCents) && (
               <Button variant="outline" size="sm" onClick={() => void propose()} disabled={proposing}>
