@@ -91,21 +91,61 @@ export const CALENDARS: Record<string, string> = {
   paper: 'Agenda cartacea',
 }
 
+/** The first campaign, as the strategist decided it over the whole context (see proposal/index.ts). */
 export interface AdProposal {
-  treatment: { name: string; category?: string; duration_minutes?: number; list_price_eur: number; why: string }
-  offer: { discounted_price_eur: number; discount_percent: number; conditions: string; duration_days: number }
+  version: 2
+  campaign: {
+    product: string
+    catalog_item: string | null
+    offer: string
+    offer_price_eur: number | null
+    target: string
+    problem: string
+    angle: string
+    big_idea: string
+    headline: string
+    promise: string
+    cta: string
+  }
+  /** The promoted catalog item, matched to the catalog, with its list price. */
+  item: { name: string; list_price_eur: number | null } | null
+  awareness: string
+  why: string
+  funnel: string
+  creative: { format: string; hero_visual: string; hierarchy: string; copy_on_image: string }
+  concepts: { concept: string; headline: string; visual: string; copy: string; cta: string }[]
+  budget: { daily_eur: number; days: number; total_eur: number; note: string }
+  kpis: string[]
+  test_rules: { first: string; no_interest: string; leads_no_appointments: string; appointments_no_sales: string }
+  confidence: { level: 'HIGH' | 'MEDIUM' | 'LOW'; reason: string }
+  missing_data: string[]
   ad: { primary_text: string; headline: string; description: string; cta: string }
-  visual: { concept: string; overlay_text: string }
-  audience: { radius_km: number; age_min: number; age_max: number; genders: 'all' | 'women' | 'men'; interests: string[] }
-  budget: { daily_eur: number; days: number; total_eur: number }
-  rationale: string
+  audience: {
+    age_min: number
+    age_max: number
+    genders: 'all' | 'women' | 'men'
+    radius_km: number | null
+    area: string
+    interests: string[]
+  }
 }
 
-/** The model's first-ad proposal for a business with a complete profile. */
+/**
+ * The first campaign, reasoned out over the whole context as a background
+ * job: started, then checked every few seconds (a few minutes at most).
+ */
 export async function requestProposal(businessId: string): Promise<{ id: string; proposal: AdProposal }> {
-  const { data, error } = await supabase.functions.invoke('proposal', { body: { business_id: businessId } })
-  if (error) throw error
-  return { id: data.id, proposal: data.proposal }
+  const started = await supabase.functions.invoke('proposal', { body: { business_id: businessId } })
+  if (started.error) throw started.error
+  const id: string = started.data.id
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await wait(4000)
+    const { data, error } = await supabase.functions.invoke('proposal', { body: { proposal_id: id, check: true } })
+    if (error) throw error
+    if (data.status === 'done') return { id, proposal: data.proposal }
+    if (data.status === 'failed') throw new Error(data.error ?? 'The campaign could not be prepared')
+  }
+  throw new Error('The campaign took too long')
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -365,6 +405,8 @@ export async function loadLatestProposal(
     .from('ad_proposals')
     .select('id, content, creative_path')
     .eq('business_id', businessId)
+    .eq('proposal_status', 'done')
+    .not('content', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()

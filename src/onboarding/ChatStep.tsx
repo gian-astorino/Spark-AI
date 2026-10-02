@@ -48,7 +48,7 @@ import {
   type AgentTurn,
   type ImportSource,
 } from './backend.ts'
-import { AdPreview } from './AdPreview.tsx'
+import { AdPreview, type CreativeState } from './AdPreview.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
 import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
@@ -84,6 +84,8 @@ type Entry =
       id: number
       from: 'proposal'
       proposal?: AdProposal
+      proposalId?: string
+      creativeState?: CreativeState
       failed?: boolean
       /** The generated image: undefined while it is being made, null if it failed. */
       creative?: string | null
@@ -164,7 +166,16 @@ export function ChatStep({
       )
       // The ad was already proposed: shown again, never proposed by itself a second time.
       proposed.current = !!latest
-      if (latest) restored.push({ id: nextId++, from: 'proposal', proposal: latest.proposal, creative: latest.creative })
+      if (latest) {
+        restored.push({
+          id: nextId++,
+          from: 'proposal',
+          proposal: latest.proposal,
+          proposalId: latest.id,
+          creative: latest.creative,
+          creativeState: latest.creative ? 'done' : 'idle',
+        })
+      }
       setEntries(restored.length ? restored : [say('Ciao di nuovo! Da dove riprendiamo?')])
     } catch (error) {
       console.error(error)
@@ -194,18 +205,28 @@ export function ChatStep({
     setEntries((list) => [...list.filter((entry) => entry.from !== 'proposal'), { id, from: 'proposal' }])
     try {
       const { id: proposalId, proposal } = await requestProposal(await businessId())
-      setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, proposal } : entry)))
-      // The image follows: the ad shows the brand colour until it arrives.
-      const creative = await requestCreative(proposalId).catch((error) => {
-        console.error(error)
-        return null
-      })
-      setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, creative } : entry)))
+      // The image waits for the owner's approval of the campaign.
+      setEntries((list) =>
+        list.map((entry) => (entry.id === id ? { ...entry, proposal, proposalId, creativeState: 'idle' } : entry)),
+      )
     } catch (error) {
       console.error(error)
       setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, failed: true } : entry)))
     } finally {
       setProposing(false)
+    }
+  }
+
+  /** The owner approved the campaign: its image is made now. */
+  async function approve(entryId: number, proposalId: string) {
+    const update = (patch: Partial<Extract<Entry, { from: 'proposal' }>>) =>
+      setEntries((list) => list.map((entry) => (entry.id === entryId && entry.from === 'proposal' ? { ...entry, ...patch } : entry)))
+    update({ creativeState: 'making' })
+    try {
+      update({ creative: await requestCreative(proposalId), creativeState: 'done' })
+    } catch (error) {
+      console.error(error)
+      update({ creativeState: 'failed' })
     }
   }
 
@@ -393,7 +414,7 @@ export function ChatStep({
             </Button>
           )}
           <Inline gap={3} align="center">
-            {profile.catalog?.some((item) => item.priceCents) && (
+            {profile.business?.name && (
               <Button variant="outline" size="sm" onClick={() => void propose()} disabled={proposing}>
                 Prima inserzione
               </Button>
@@ -442,14 +463,16 @@ export function ChatStep({
                         <Stack gap={3}>
                           <Bubble variant="ghost">
                             <BubbleContent>
-                              Ecco una proposta per la tua prima inserzione, costruita sul tuo listino. Se non ti convince,
-                              rigenerala.
+                              Ecco la campagna che ti propongo per acquisire nuovi clienti, pensata su tutto quello che so della
+                              tua attività. Se ti convince approvala e creo l'immagine; se no, rigenerala.
                             </BubbleContent>
                           </Bubble>
                           <AdPreview
                             proposal={entry.proposal}
                             creative={entry.creative}
+                            creativeState={entry.creativeState ?? 'idle'}
                             profile={profile}
+                            onApprove={() => entry.proposalId && void approve(entry.id, entry.proposalId)}
                             onRegenerate={() => void propose()}
                             regenerating={proposing}
                           />
@@ -462,7 +485,7 @@ export function ChatStep({
                             ) : (
                               <Inline gap={2} align="center">
                                 <Spinner />
-                                Sto pensando alla tua prima inserzione…
+                                Sto studiando la tua prima campagna: ci vuole qualche minuto…
                               </Inline>
                             )}
                           </BubbleContent>

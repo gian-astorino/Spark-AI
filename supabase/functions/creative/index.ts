@@ -4,10 +4,10 @@
 // The image runs as an OpenAI background job (see _shared/image-jobs.ts): the
 // app calls "check" every few seconds until it is done.
 //
-// The ad itself, made by gpt-image-2.5 with as much freedom as possible: a
-// short prompt with the offer the proposal settled on, and the brand board
-// (logo, colours, fonts, pattern) attached for the style. The model writes all
-// the ad's text; the app lays nothing over it.
+// The ad itself, made by gpt-image-2.5 once the owner approved the campaign:
+// a short prompt with the campaign's offer, hero visual and copy on image,
+// and the brand board (logo, colours, fonts, background) attached for the
+// style. The model writes all the ad's text; the app lays nothing over it.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { checkImageJob, dataUrl, startImageJob } from '../_shared/image-jobs.ts'
@@ -37,9 +37,10 @@ Deno.serve(async (request) => {
   try {
     if (check) return json(await report(db, proposal), 200)
     if (proposal.creative_status === 'running') return json({ status: 'running' }, 200)
+    if (!proposal.content) return json({ error: 'The campaign is not ready yet' }, 409)
 
     const [{ data: business }, { data: brand }] = await Promise.all([
-      db.from('businesses').select('name, sector').eq('id', proposal.business_id).single(),
+      db.from('businesses').select('name').eq('id', proposal.business_id).single(),
       db.from('brand_profiles').select('logo_path, board_path').eq('business_id', proposal.business_id).maybeSingle(),
     ])
     // The brand board as the reference; the logo if there is no board yet. Raster only (no SVG).
@@ -49,15 +50,18 @@ Deno.serve(async (request) => {
       const { data } = await db.storage.from('logos').download(reference)
       if (data) image = dataUrl(data.type || 'image/png', new Uint8Array(await data.arrayBuffer()))
     }
-    const { treatment, offer } = proposal.content as {
-      treatment: { name: string; list_price_eur: number }
-      offer: { discount_percent: number; discounted_price_eur: number; conditions: string }
+    // The campaign the strategist chose (see proposal/index.ts): its offer and its creative.
+    const { campaign, creative } = proposal.content as {
+      campaign: { product: string; offer: string; offer_price_eur: number | null }
+      creative: { hero_visual: string; copy_on_image: string }
     }
 
-    // As short as it gets: the image model decides everything else.
+    // Short: the image model decides the rest.
     const prompt = [
-      `Create a simple, clean square ad for Instagram and Facebook for ${business?.name ?? 'a business'}${business?.sector ? `, a ${business.sector} business` : ''} in Italy.`,
-      `Offer: "${treatment.name} a ${euro(offer.discounted_price_eur)} invece di ${euro(treatment.list_price_eur)} (-${offer.discount_percent}%). ${offer.conditions}"`,
+      `Create a simple, clean square ad for Instagram and Facebook for ${business?.name ?? 'a business'}.`,
+      `Offer: "${campaign.product}: ${campaign.offer}${campaign.offer_price_eur ? ` (${euro(campaign.offer_price_eur)})` : ''}"`,
+      `Visual: ${creative.hero_visual}`,
+      `Text on the image, exactly: "${creative.copy_on_image}"`,
       image ? 'Use the attachments to influence the visual style of the final image.' : '',
     ]
       .filter(Boolean)
