@@ -23,7 +23,7 @@
 
 .page-heading h1 {
   margin: 0;
-  font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
+  font-size: clamp(1.5rem, 1.3rem + 0.8vw, 1.75rem); /* 24px on phones, 28px on desktop */
   line-height: 1.15;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -31,8 +31,8 @@
 }
 
 .page-heading p {
-  margin: 0.75rem 0 0;
-  font-size: 1rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.9375rem;
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
