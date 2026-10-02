@@ -18,6 +18,7 @@ import { Globe02Icon, Chatting01Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { FallingBooksIcon } from './FallingBooksIcon.tsx'
 import { Icon } from './Icon.tsx'
+import { SparkLogo } from './SparkLogo.tsx'
 import type { ImportRequest, Source } from './types.ts'
 
 const OPTIONS: { value: Source; title: string; description: string; icon: IconSvgElement; disabled?: boolean }[] = [
@@ -78,8 +79,10 @@ export function SourceStep({ onContinue }: { onContinue: (request: ImportRequest
 
   return (
     <div className="welcome">
-      {/* Desktop only: the left column, empty for now. */}
-      <div className="welcome-aside" aria-hidden />
+      {/* Desktop only: the left column, with Spark's logo for now. */}
+      <div className="welcome-aside">
+        <SparkLogo />
+      </div>
       <form className="welcome-body" onSubmit={submit}>
         <Stack gap={8}>
           <Stack gap={4} align={{ base: 'center', lg: 'start' }}>

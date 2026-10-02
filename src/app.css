@@ -81,7 +81,9 @@ h6 {
   }
 
   .welcome-aside {
-    display: block;
+    display: grid;
+    place-items: center;
+    padding: 2rem;
     background: var(--muted);
   }
 
@@ -837,4 +839,34 @@ h6 {
 
 .platform-logos > [data-slot='item-media'] + [data-slot='item-media'] {
   margin-left: -0.5rem;
+}
+
+/* Spark's logo in the home's left column: the filled sparkles in the brand's
+   magenta, the name in Plus Jakarta Sans. */
+.spark-logo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.spark-logo-mark {
+  flex: none;
+  width: 4rem;
+  height: 4rem;
+  color: #b3306a;
+}
+
+.spark-logo-name {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  font-size: clamp(2.5rem, 1rem + 2.5vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--foreground);
+}
+
+.spark-logo-name span {
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
