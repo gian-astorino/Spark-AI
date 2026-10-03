@@ -1,4 +1,6 @@
-import { Avatar, AvatarFallback, Button, Inline, Spinner } from '@skyground-media/pipelean-design-system'
+import { Avatar, AvatarFallback, Button } from '@skyground-media/pipelean-design-system'
+// Inline, so its strokes take the container's colour (currentColor) and its animations run.
+import imagining from './imagining.svg?raw'
 import type { Ad } from './backend.ts'
 import type { Profile } from './profile.ts'
 
@@ -49,18 +51,13 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
           className="ad-visual ad-visual-empty"
           style={{ background: brand ? `linear-gradient(135deg, ${brand}, color-mix(in oklch, ${brand} 55%, black))` : undefined }}
         >
-          <span className="ad-visual-status">
-            {making ? (
-              <Inline gap={2} align="center">
-                <Spinner />
-                Sto creando l'immagine…
-              </Inline>
-            ) : latest?.status === 'failed' ? (
-              "Non sono riuscito a creare l'immagine"
-            ) : (
-              'Ancora nessuna immagine'
-            )}
-          </span>
+          {making ? (
+            <span className="imagining" role="img" aria-label="Sto creando l'immagine" dangerouslySetInnerHTML={{ __html: imagining }} />
+          ) : (
+            <span className="ad-visual-status">
+              {latest?.status === 'failed' ? "Non sono riuscito a creare l'immagine" : 'Ancora nessuna immagine'}
+            </span>
+          )}
         </div>
       )}
 

@@ -729,6 +729,17 @@ img.ad-visual {
   color: var(--muted-foreground);
 }
 
+.imagining {
+  width: 5rem;
+  height: 5rem;
+}
+
+.imagining svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .ad-visual-status {
   align-self: center;
   padding: 0.25rem 0.75rem;
