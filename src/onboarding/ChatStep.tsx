@@ -66,7 +66,7 @@ interface PickedFile {
 const MAX_FILES = 6
 
 type Entry =
-  | { id: number; from: 'agent'; text: string; quickReplies?: string[]; ads?: string[] }
+  | { id: number; from: 'agent'; text: string; ads?: string[] }
   | {
       id: number
       from: 'user'
@@ -82,13 +82,13 @@ const IMAGES_MS = 5000
 const AGENT_DOWN = 'Scusa, in questo momento non riesco a rispondere. Riprova tra poco.'
 let nextId = 0
 
-const say = (text: string, quickReplies?: string[], ads?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies, ads })
+const say = (text: string, ads?: string[]): Entry => ({ id: nextId++, from: 'agent', text, ads })
 
 /** A message from the server as the conversation shows it. */
 const fromServer = (entry: AgentEntry): Entry =>
   entry.role === 'user'
     ? { id: nextId++, from: 'user', text: entry.text, sentPaths: entry.attachments }
-    : say(entry.text, entry.choices?.length ? entry.choices : undefined, entry.ads?.length ? entry.ads : undefined)
+    : say(entry.text, entry.ads?.length ? entry.ads : undefined)
 
 /**
  * The conversation of a workspace: a new one, started from the source the owner
@@ -150,7 +150,7 @@ export function ChatStep({
       // Ads made before they were shown in the chat (the first proposals): the latest one closes it.
       const shown = new Set(history.flatMap((entry) => entry.ads ?? []))
       const unseen = all.find((ad) => !shown.has(ad.id))
-      if (unseen) restored.push(say('La tua ultima inserzione:', undefined, [unseen.id]))
+      if (unseen) restored.push(say('La tua ultima inserzione:', [unseen.id]))
       setEntries(restored.length ? restored : [say('Ciao di nuovo! Da dove riprendiamo?')])
       void follow({ resume: true })
     } catch (error) {
@@ -313,7 +313,6 @@ export function ChatStep({
 
   const thinking = working
   const busy = working
-  const lastId = entries[entries.length - 1]?.id
   const panel = (titled: boolean) => (
     <ProfilePanel profile={profile} sectionState={sectionState} onEdit={setEditing} titled={titled} />
   )
@@ -385,15 +384,6 @@ export function ChatStep({
                       </Bubble>
                       {entry.ads?.map((id) =>
                         ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} onAsk={send} busy={busy} /> : null,
-                      )}
-                      {entry.quickReplies && entry.id === lastId && !thinking && (
-                        <Inline gap={2}>
-                          {entry.quickReplies.map((reply) => (
-                            <Button key={reply} variant="outline" size="sm" onClick={() => send(reply)}>
-                              {reply}
-                            </Button>
-                          ))}
-                        </Inline>
                       )}
                     </Stack>
                   </MessageContent>

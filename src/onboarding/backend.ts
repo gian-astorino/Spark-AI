@@ -23,8 +23,6 @@ export interface AgentEntry {
   text: string
   /** The owner's files: their storage paths. */
   attachments?: string[]
-  /** Answers the owner can tap, under the reply that closes a turn. */
-  choices?: string[]
   /** Ads saved or given an image in that turn, shown as cards. */
   ads?: string[]
 }
@@ -343,6 +341,6 @@ export async function loadHistory(businessId: string): Promise<AgentEntry[]> {
   return (data ?? []).flatMap((row): AgentEntry[] => {
     const display = row.display as Omit<AgentEntry, 'id' | 'role'>
     if (row.role === 'assistant' && !display.text) return []
-    return [{ id: row.id, role: row.role, text: display.text ?? '', attachments: display.attachments, choices: display.choices, ads: display.ads }]
+    return [{ id: row.id, role: row.role, text: display.text ?? '', attachments: display.attachments, ads: display.ads }]
   })
 }

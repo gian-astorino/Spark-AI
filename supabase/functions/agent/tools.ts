@@ -59,16 +59,6 @@ const KERNEL: ToolDef[] = [
     },
   },
   {
-    name: 'offer_choices',
-    description: 'Show up to four short answers the owner can tap instead of typing, under your reply.',
-    input_schema: {
-      type: 'object',
-      properties: { options: { type: 'array', items: { type: 'string' } } },
-      required: ['options'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'set_onboarding_status',
     description: "Set where the business's onboarding stands.",
     input_schema: {
@@ -198,8 +188,6 @@ const RESEARCH_NAMES = new Set(RESEARCH_TOOLS.map((tool) => tool.name))
 export interface TurnState {
   rounds: number
   reads: number
-  /** Shown under the reply that closes the turn. */
-  choices: string[]
   /** Ads saved or given an image this turn: shown with the reply. */
   ads: string[]
 }
@@ -258,10 +246,6 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
         (await visualBlock(image.bytes, image.name, image.type)) as Anthropic.Beta.BetaImageBlockParam,
       ]
     }
-
-    case 'offer_choices':
-      ctx.turn.choices = (input.options as string[]).map(String).slice(0, 4)
-      return 'The options will be shown under your reply: write it now, as your final message.'
 
     case 'set_onboarding_status':
       await check(db.from('businesses').update({ onboarding_status: input.status }).eq('id', businessId))

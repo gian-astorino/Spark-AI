@@ -144,7 +144,7 @@ async function beginTurn(
     content,
     display: 'message' in turn ? { text: turn.message, attachments: turn.files } : null,
   })
-  const fresh: TurnState = { rounds: 0, reads: 0, choices: [], ads: [] }
+  const fresh: TurnState = { rounds: 0, reads: 0, ads: [] }
   await db
     .from('conversations')
     .update({ status: 'running', activity: 'Ci penso', turn: { ...fresh, message: 'message' in turn ? turn.message : null } })
@@ -199,7 +199,7 @@ async function run(db: SupabaseClient, conversationId: string, businessId: strin
     await db.from('conversations').update({ status: 'running', turn: rest }).eq('id', conversationId)
     conversation.turn = rest
   }
-  const turn = { rounds: 0, reads: 0, choices: [], ads: [], ...(conversation.turn as object) } as TurnState & {
+  const turn = { rounds: 0, reads: 0, ads: [], ...(conversation.turn as object) } as TurnState & {
     message?: string | null
   }
   const skills = await loadSkills(db)
@@ -271,13 +271,13 @@ async function run(db: SupabaseClient, conversationId: string, businessId: strin
       role: 'assistant',
       content: response.content,
       stop_reason: response.stop_reason,
-      // The reply that closes the turn carries its choices and ads; text along the way is shown as it is.
+      // The reply that closes the turn carries its ads; text along the way is shown as it is.
       display:
         continues || speechless
           ? shown
             ? { text: shown }
             : null
-          : { text: shown || 'Fatto.', choices: turn.choices, ads: turn.ads },
+          : { text: shown || 'Fatto.', ads: turn.ads },
     })
 
     if (speechless) {
