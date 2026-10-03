@@ -736,6 +736,17 @@ img.ad-visual {
   font-size: 0.875rem;
 }
 
+.ad-cta {
+  flex: none;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  background: #0866ff;
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .ad-foot small {
   font-size: 0.75rem;
   color: var(--muted-foreground);

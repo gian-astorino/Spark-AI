@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { Avatar, AvatarFallback, Button } from '@skyground-media/pipelean-design-system'
+import { Avatar, AvatarFallback } from '@skyground-media/pipelean-design-system'
 // Inline, so its strokes take the container's colour (currentColor) and its animations run.
 import imagining from './imagining.svg?raw'
 import type { Ad } from './backend.ts'
@@ -72,9 +72,8 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
           <strong>{copy?.headline ?? ad.name}</strong>
           {copy?.description && <small>{copy.description}</small>}
         </span>
-        <Button variant="secondary" size="sm" tabIndex={-1}>
-          {CTA_LABELS[copy?.cta ?? ''] ?? 'Scopri di più'}
-        </Button>
+        {/* Not a button: the ad's own CTA, as Meta draws it. */}
+        <span className="ad-cta">{CTA_LABELS[copy?.cta ?? ''] ?? 'Scopri di più'}</span>
       </footer>
     </article>
   )
