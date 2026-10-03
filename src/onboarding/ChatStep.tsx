@@ -374,62 +374,66 @@ export function ChatStep({
           </Inline>
         </header>
 
-        <main
-          className="chat-log"
-          ref={log}
-          onScroll={(event) => {
-            const element = event.currentTarget
-            atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
-          }}
-        >
-          <MessageGroup>
-            {entries.map((entry) =>
-              entry.from === 'user' ? (
-                <Message key={entry.id} align="end">
-                  <MessageContent>
-                    {entry.files && entry.files.length > 0 && <SentFiles files={entry.files} />}
-                    {entry.sentPaths && entry.sentPaths.length > 0 && <SentPaths paths={entry.sentPaths} />}
-                    {entry.text && (
-                      <Bubble variant="tinted" align="end">
-                        <BubbleContent>{entry.text}</BubbleContent>
-                      </Bubble>
-                    )}
-                  </MessageContent>
-                </Message>
-              ) : (
-                <Message key={entry.id}>
-                  <MessageContent>
-                    <Stack gap={3}>
-                      <Bubble variant="ghost">
-                        <BubbleContent>
-                          {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
-                        </BubbleContent>
-                      </Bubble>
-                      {entry.ads && entry.ads.some((id) => ads[id]) && (
-                        // One or more ads on one row, scrolled sideways.
-                        <div className="ad-carousel">
-                          {entry.ads.map((id) => (ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null))}
-                        </div>
+        <div className="chat-body">
+          <main
+            className="chat-log"
+            ref={log}
+            onScroll={(event) => {
+              const element = event.currentTarget
+              atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
+            }}
+          >
+            <MessageGroup>
+              {entries.map((entry) =>
+                entry.from === 'user' ? (
+                  <Message key={entry.id} align="end">
+                    <MessageContent>
+                      {entry.files && entry.files.length > 0 && <SentFiles files={entry.files} />}
+                      {entry.sentPaths && entry.sentPaths.length > 0 && <SentPaths paths={entry.sentPaths} />}
+                      {entry.text && (
+                        <Bubble variant="tinted" align="end">
+                          <BubbleContent>{entry.text}</BubbleContent>
+                        </Bubble>
                       )}
-                    </Stack>
+                    </MessageContent>
+                  </Message>
+                ) : (
+                  <Message key={entry.id}>
+                    <MessageContent>
+                      <Stack gap={3}>
+                        <Bubble variant="ghost">
+                          <BubbleContent>
+                            {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
+                          </BubbleContent>
+                        </Bubble>
+                        {entry.ads && entry.ads.some((id) => ads[id]) && (
+                          // One or more ads on one row, scrolled sideways.
+                          <div className="ad-carousel">
+                            {entry.ads.map((id) => (ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null))}
+                          </div>
+                        )}
+                      </Stack>
+                    </MessageContent>
+                  </Message>
+                ),
+              )}
+              {thinking && (
+                <Message>
+                  <MessageContent>
+                    <Bubble variant="ghost">
+                      <BubbleContent>
+                        <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
+                      </BubbleContent>
+                    </Bubble>
                   </MessageContent>
                 </Message>
-              ),
-            )}
-            {thinking && (
-              <Message>
-                <MessageContent>
-                  <Bubble variant="ghost">
-                    <BubbleContent>
-                      <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
-                    </BubbleContent>
-                  </Bubble>
-                </MessageContent>
-              </Message>
-            )}
-          </MessageGroup>
-          <div ref={end} />
-        </main>
+              )}
+            </MessageGroup>
+            <div ref={end} />
+          </main>
+          {/* Spark beside the conversation, at its bottom: the messages scroll, it stays. Thinking while it works, idle otherwise. */}
+          {thinking ? <SparkAvatar svg={thinkingLoop} label="Spark sta lavorando" /> : <SparkAvatar svg={idleLoop} />}
+        </div>
 
         <footer
           className="chat-composer"
@@ -439,8 +443,6 @@ export function ChatStep({
             pick(event.dataTransfer.files)
           }}
         >
-          {/* Spark, anchored at the bottom left whatever is scrolled: thinking while it works, idle otherwise. */}
-          {thinking ? <SparkAvatar svg={thinkingLoop} label="Spark sta lavorando" /> : <SparkAvatar svg={idleLoop} />}
           <Stack gap={2}>
             {files.length > 0 && (
               <AttachmentGroup>

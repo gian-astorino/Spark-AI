@@ -814,30 +814,31 @@ img.ad-visual {
   }
 }
 
-/* Spark's avatar, anchored at the bottom left of the chat whatever is
-   scrolled: in the margin beside the conversation where there is one, at the
-   side of the composer where there is not. */
+/* Spark's avatar beside the conversation, at its bottom: outside the part
+   that scrolls, so the messages move and it stays. Where the conversation
+   has no margin for it, the messages make room. */
 .chat {
   container: chat-pane / inline-size;
 }
 
-.chat-composer {
+.chat-body {
   position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
+  display: grid;
+  min-height: 0;
 }
 
-.chat-composer > :last-child {
-  flex: 1;
-  min-width: 0;
+.chat-body > .chat-log {
+  min-height: 0;
+  padding-left: 3.75rem;
 }
 
 .spark-avatar {
-  flex: none;
+  position: absolute;
+  left: 1rem;
+  bottom: 0.75rem;
   width: 2.25rem;
   height: 2.25rem;
-  margin-bottom: 0.5rem;
+  pointer-events: none;
 }
 
 .spark-avatar svg {
@@ -847,13 +848,14 @@ img.ad-visual {
 }
 
 @container chat-pane (min-width: 52rem) {
+  .chat-body > .chat-log {
+    padding-left: max(1rem, calc((100% - 44rem) / 2));
+  }
+
   .spark-avatar {
-    position: absolute;
     left: calc((100% - 44rem) / 2 - 3.5rem);
-    bottom: 1.25rem;
     width: 40px;
     height: 40px;
-    margin-bottom: 0.25rem;
   }
 }
 
