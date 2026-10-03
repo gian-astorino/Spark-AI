@@ -852,7 +852,9 @@ img.ad-visual {
     padding-left: calc(max(1rem, (100% - 44rem) / 2) + 3.5rem);
   }
 
+  /* Level with the last line of text: the conversation ends 2rem above its bottom edge. */
   .spark-avatar {
+    bottom: 1.625rem;
     width: 40px;
     height: 40px;
   }
