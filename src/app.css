@@ -732,9 +732,10 @@ img.ad-visual {
   color: var(--muted-foreground);
 }
 
+/* Half the image's container, whatever its size. */
 .imagining {
-  width: 5rem;
-  height: 5rem;
+  width: 50%;
+  aspect-ratio: 1;
 }
 
 .imagining svg {
