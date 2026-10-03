@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from './Markdown.tsx'
 
 /** Milliseconds between one word and the next. */
@@ -15,62 +15,70 @@ interface TreeNode {
   children?: TreeNode[]
 }
 
+/** Elements that are whole without any text in them. */
+const VOID = new Set(['br', 'hr', 'img'])
+
 /**
- * A reply that has just arrived, its words fading in one after the other.
- * The whole text is laid out at once, invisible, so nothing moves while it
- * appears. Without motion (the owner's system setting) it shows at once.
+ * The rendered reply up to its `shown`-th word: each word a span that fades
+ * in as it arrives, and whatever holds no word yet (a paragraph, a list item
+ * and its bullet) left out until its first word does. The words already on
+ * screen stay as they are, so only the new one fades.
+ */
+function upToWord(shown: number, total: { current: number }) {
+  return () => (tree: TreeNode) => {
+    let index = 0
+    const walk = (node: TreeNode): boolean => {
+      if (!node.children) return node.type !== 'element' || VOID.has(node.tagName ?? '')
+      node.children = node.children.flatMap((child): TreeNode[] => {
+        if (child.type === 'text' && child.value) {
+          return child.value
+            .split(/(\s+)/)
+            .filter(Boolean)
+            .flatMap((part): TreeNode[] => {
+              if (/^\s+$/.test(part)) return [{ type: 'text', value: part }]
+              const visible = index < shown
+              index++
+              return visible
+                ? [{ type: 'element', tagName: 'span', properties: { className: ['typed-word'] }, children: [{ type: 'text', value: part }] }]
+                : []
+            })
+        }
+        if (!walk(child)) return []
+        // A list item fades in with its first word, so its bullet never shows alone.
+        if (child.type === 'element' && child.tagName === 'li') {
+          const classes = (child.properties?.className as string[] | undefined) ?? []
+          child.properties = { ...child.properties, className: [...classes, 'typed-word'] }
+        }
+        return [child]
+      })
+      // An element is kept once it holds a word (whitespace alone does not count).
+      return node.children.some((child) => child.type === 'element' || (child.type === 'text' && !!child.value?.trim()))
+    }
+    walk(tree)
+    total.current = index
+  }
+}
+
+/**
+ * A reply that has just arrived, growing word by word, each one fading in.
+ * Without motion (the owner's system setting) it shows whole at once.
  */
 export function TypedMarkdown({ children, onDone }: { children: string; /** Once the last word is in. */ onDone?: () => void }) {
-  const words = useRef(0)
-  // Every word of the text becomes a span that fades in after the one before it.
-  const plugins = useMemo(
-    () => [
-      () => (tree: TreeNode) => {
-        let index = 0
-        const walk = (node: TreeNode) => {
-          if (!node.children) return
-          node.children = node.children.flatMap((child): TreeNode[] => {
-            if (child.type !== 'text' || !child.value) {
-              // A list item fades in with its first word, so its bullet never shows alone.
-              if (child.type === 'element' && child.tagName === 'li') {
-                const classes = (child.properties?.className as string[] | undefined) ?? []
-                child.properties = {
-                  ...child.properties,
-                  className: [...classes, 'typed-word'],
-                  style: `animation-delay: ${index * WORD_MS}ms`,
-                }
-              }
-              walk(child)
-              return [child]
-            }
-            return child.value
-              .split(/(\s+)/)
-              .filter(Boolean)
-              .map((part) =>
-                /^\s+$/.test(part)
-                  ? { type: 'text', value: part }
-                  : {
-                      type: 'element',
-                      tagName: 'span',
-                      properties: { className: ['typed-word'], style: `animation-delay: ${index++ * WORD_MS}ms` },
-                      children: [{ type: 'text', value: part }],
-                    },
-              )
-          })
-        }
-        walk(tree)
-        words.current = index
-      },
-    ],
-    [],
+  const total = useRef(Number.POSITIVE_INFINITY)
+  const [shown, setShown] = useState(() =>
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ? Number.POSITIVE_INFINITY : 1,
   )
+  const plugins = useMemo(() => [upToWord(shown, total)], [shown])
 
   useEffect(() => {
-    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const timer = setTimeout(() => onDone?.(), still ? 0 : words.current * WORD_MS + FADE_MS)
+    if (shown >= total.current) {
+      const timer = setTimeout(() => onDone?.(), Number.isFinite(shown) ? FADE_MS : 0)
+      return () => clearTimeout(timer)
+    }
+    const timer = setTimeout(() => setShown((count) => count + 1), WORD_MS)
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the text it was given
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone is called once, when the last word is in
+  }, [shown])
 
   return <Markdown rehypePlugins={plugins}>{children}</Markdown>
 }

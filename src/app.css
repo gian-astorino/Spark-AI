@@ -898,8 +898,7 @@ img.ad-visual {
   }
 }
 
-/* A reply that has just arrived: its words fade in one after the other
-   (the delay of each is set on it, see TypedMarkdown). */
+/* A reply that has just arrived: each word fades in as it is added (see TypedMarkdown). */
 .typed-word {
   opacity: 0;
   animation: word-in 300ms ease-out forwards;
