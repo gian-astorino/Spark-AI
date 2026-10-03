@@ -332,11 +332,6 @@ export function ChatStep({
             </Button>
           )}
           <Inline gap={3} align="center">
-            {profile.business?.name && (
-              <Button variant="outline" size="sm" onClick={() => send('Proponimi una campagna per acquisire nuovi clienti.')} disabled={busy}>
-                Nuova campagna
-              </Button>
-            )}
             <span className="profile-toggle">
               {/* On a phone the profile comes up from the bottom. */}
               <Drawer>
