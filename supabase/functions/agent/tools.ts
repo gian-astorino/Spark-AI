@@ -139,6 +139,17 @@ const KERNEL: ToolDef[] = [
     },
   },
   {
+    name: 'show_ads',
+    description:
+      'Show ads made earlier under your reply, next to the ones of this turn (to compare them, or when you talk about them).',
+    input_schema: {
+      type: 'object',
+      properties: { ad_ids: { type: 'array', items: { type: 'string' } } },
+      required: ['ad_ids'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'save_note',
     description: 'Keep a note for later (a strategy, a plan, a memory about the client, a report), or replace one (note_id).',
     input_schema: {
@@ -296,6 +307,14 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
       )
       if (!ctx.turn.ads.includes(adId)) ctx.turn.ads.push(adId)
       return `Image ${image!.id} started; it will appear on the ad card in a minute or two.${missing.length ? ` Not found or not usable, left out: ${missing.join(', ')}.` : ''}`
+    }
+
+    case 'show_ads': {
+      const ids = (input.ad_ids as string[]).map(String)
+      const { data } = await db.from('ads').select('id').eq('business_id', businessId).in('id', ids)
+      for (const { id } of data ?? []) if (!ctx.turn.ads.includes(id)) ctx.turn.ads.push(id)
+      const missing = ids.filter((id) => !(data ?? []).some((ad) => ad.id === id))
+      return `They will be shown under your reply.${missing.length ? ` Unknown, left out: ${missing.join(', ')}.` : ''}`
     }
 
     case 'save_note': {
