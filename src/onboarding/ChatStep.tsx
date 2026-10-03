@@ -22,7 +22,9 @@ import {
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import {
+  ArrowLeft01Icon,
   ArrowLeft02Icon,
+  ArrowRight01Icon,
   ArrowUp02Icon,
   Attachment02Icon,
   Cancel01Icon,
@@ -82,6 +84,7 @@ type Entry =
 
 /** How often a turn under way is moved on, and the ad images looked at. */
 const RESUME_MS = 1500
+const PANEL_KEY = 'spark.contextPanel'
 /** One loop of the speaking avatar (speaking.svg, dur="6s"). */
 const SPEAKING_CYCLE_MS = 6000
 const IMAGES_MS = 5000
@@ -124,6 +127,24 @@ export function ChatStep({
   const [draft, setDraft] = useState('')
   const [files, setFiles] = useState<PickedFile[]>([])
   const [editing, setEditing] = useState<Editing | null>(null)
+  // On a desktop the context panel can be folded away; the choice is remembered on this device.
+  const [panelOpen, setPanelOpen] = useState(() => {
+    try {
+      return localStorage.getItem(PANEL_KEY) !== 'closed'
+    } catch {
+      return true
+    }
+  })
+  function togglePanel() {
+    setPanelOpen((open) => {
+      try {
+        localStorage.setItem(PANEL_KEY, open ? 'closed' : 'open')
+      } catch {
+        // Not remembered: it still folds for now.
+      }
+      return !open
+    })
+  }
   const picker = useRef<HTMLInputElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   // A turn of the agent's in flight: the typing indicator shows what it is doing.
@@ -362,7 +383,7 @@ export function ChatStep({
   )
 
   return (
-    <div className="workspace">
+    <div className="workspace" data-panel={panelOpen ? 'open' : 'closed'}>
       <div className="chat">
         <header className="chat-header">
           {onBack ? (
@@ -376,6 +397,20 @@ export function ChatStep({
             </Button>
           )}
           <Inline gap={3} align="center">
+            {/* On a desktop: fold the context panel away, or bring it back. */}
+            <span className="panel-toggle">
+              <Button
+                variant="ghost"
+                size={panelOpen ? 'icon-sm' : 'sm'}
+                aria-label={panelOpen ? 'Chiudi il contesto' : 'Apri il contesto'}
+                title={panelOpen ? 'Chiudi il contesto' : 'Apri il contesto'}
+                aria-expanded={panelOpen}
+                onClick={togglePanel}
+              >
+                <Icon icon={panelOpen ? ArrowRight01Icon : ArrowLeft01Icon} />
+                {!panelOpen && 'Contesto'}
+              </Button>
+            </span>
             <span className="profile-toggle">
               {/* On a phone the profile comes up from the bottom. */}
               <Drawer>

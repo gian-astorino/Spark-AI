@@ -242,6 +242,21 @@ h6 {
   .profile-toggle {
     display: none;
   }
+
+  /* Folded away: the chat takes the whole width. */
+  .workspace[data-panel='closed'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace[data-panel='closed'] .profile-panel {
+    display: none;
+  }
+}
+
+/* The fold button is a desktop thing: on a phone the context comes up from the bottom. */
+@media (max-width: 1023px) {
+  .panel-toggle {
+    display: none;
+  }
 }
 
 .rows {
