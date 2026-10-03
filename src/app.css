@@ -814,7 +814,7 @@ img.ad-visual {
   }
 }
 
-/* Spark's thinking animation, in place of a spinner. */
+/* Spark at the end of the chat: thinking (in place of a spinner) or idle. */
 .thinking {
   display: block;
   flex: none;

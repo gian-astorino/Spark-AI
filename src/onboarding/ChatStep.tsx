@@ -48,6 +48,7 @@ import {
 import { AdCard } from './AdCard.tsx'
 // Inline, so its strokes take the text colour (currentColor) and its animations run.
 import thinkingLoop from './thinking.svg?raw'
+import idleLoop from './idle.svg?raw'
 import { Markdown } from './Markdown.tsx'
 import { TypedMarkdown } from './TypedMarkdown.tsx'
 import { Icon } from './Icon.tsx'
@@ -415,20 +416,23 @@ export function ChatStep({
                 </Message>
               ),
             )}
-            {thinking && (
-              <Message>
-                <MessageContent>
-                  <Bubble variant="ghost">
-                    <BubbleContent>
+            {/* Spark at the end of the conversation: thinking while it works, idle otherwise. */}
+            <Message>
+              <MessageContent>
+                <Bubble variant="ghost">
+                  <BubbleContent>
+                    {thinking ? (
                       <Inline gap={2} align="center">
                         <span className="thinking" role="img" aria-label="Spark sta lavorando" dangerouslySetInnerHTML={{ __html: thinkingLoop }} />
                         <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
                       </Inline>
-                    </BubbleContent>
-                  </Bubble>
-                </MessageContent>
-              </Message>
-            )}
+                    ) : (
+                      <span className="thinking" aria-hidden dangerouslySetInnerHTML={{ __html: idleLoop }} />
+                    )}
+                  </BubbleContent>
+                </Bubble>
+              </MessageContent>
+            </Message>
           </MessageGroup>
           <div ref={end} />
         </main>
