@@ -22,5 +22,5 @@ export default {
 If fonts are missing, propose a heading/body pair from Google Fonts (look at the logo first if there is one); save it with set_fonts once they agree, then refresh_brand_board.
 
 ## Tone of voice
-Three to five sentences on how the business talks to its customers (tu or lei, register, warmth, vocabulary, sentence length, emoji, what it avoids), concrete enough to write a post in that voice, plus three to five keywords. From the owner's words and the business's own texts. Ask the owner when there is nothing to read it from.`,
+Three to five sentences on how the business talks to its customers (tu or lei, register, warmth, vocabulary, sentence length, emoji, what it avoids), concrete enough to write a post in that voice, plus three to five keywords. From what you have: the owner's words and anything the business wrote (its site, its posts, its own service descriptions on a booking platform). Ask the owner only when there is truly nothing to read it from.`,
 } satisfies Skill

@@ -34,7 +34,7 @@ The owner pasted it because it matters: read it and save everything it adds, sec
 - Facebook and Instagram may show a login wall: say the page could not be read, not that it belongs to someone else.
 - Only save what a source states: never guess prices, durations, hours or addresses. When sources disagree, prefer the business's own website.
 - Prices: with a discounted price next to a struck-through one, save the discounted price. "da € 30" next to a category is a starting price, not an item.
-- Tone of voice: describe it from how the business's own pages and posts are written, not a platform's copy (set_tone_of_voice, in Italian).
+- Tone of voice: always derive it from what you have, before stopping. Any text the business wrote counts: its site, its posts, and its own descriptions of services on a booking platform or marketplace. Leave out only what the platform writes itself (a generated "About", review summaries). Save it with set_tone_of_voice, in Italian; a better source found later can replace it.
 - Write descriptions you compose in Italian. Keep names of items, categories and addresses exactly as the source writes them.
 
 ## Branding
