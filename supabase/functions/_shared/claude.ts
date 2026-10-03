@@ -5,7 +5,10 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export const MODEL = 'claude-opus-5-5'
 
-export const anthropic = new Anthropic() // ANTHROPIC_API_KEY from the function's secrets
+// ANTHROPIC_API_KEY from the function's secrets. A key not scoped to a
+// workspace needs the workspace named on every request: ANTHROPIC_WORKSPACE_ID.
+const workspace = Deno.env.get('ANTHROPIC_WORKSPACE_ID')
+export const anthropic = new Anthropic(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {})
 
 /** Server-side refusal fallback: a request a safety classifier declines is re-run on the default fallback model. */
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
