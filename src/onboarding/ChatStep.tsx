@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   Attachment,
   AttachmentAction,
@@ -152,6 +152,15 @@ export function ChatStep({
   const atBottom = useRef(true)
   /** The first time there is something to show, it is shown from the bottom at once. */
   const arrived = useRef(false)
+  /**
+   * On a phone, the message just sent is held at the top of the conversation
+   * while the reply comes in under it, until the owner scrolls: its id, and
+   * the room left under the conversation so it can stay up there.
+   */
+  const [anchor, setAnchor] = useState<number | null>(null)
+  const [anchorRoom, setAnchorRoom] = useState(0)
+  const anchored = useRef(false)
+  anchored.current = anchor !== null
   const business = useRef<Promise<string> | null>(null)
   /** The last server message on screen: the agent sends what comes after it. */
   const seen = useRef(0)
@@ -291,11 +300,26 @@ export function ChatStep({
   }, [])
 
   useEffect(() => {
-    if (entries.length === 0) return
+    if (entries.length === 0 || anchor !== null) return
     end.current?.scrollIntoView({ behavior: arrived.current ? 'smooth' : 'auto', block: 'end' })
     arrived.current = true
     atBottom.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the conversation, not the anchor
   }, [entries, working])
+
+  // The message just sent goes to the top, with room enough under it to stay there.
+  useLayoutEffect(() => {
+    const element = log.current
+    const sent = anchor !== null ? element?.querySelector<HTMLElement>(`[data-entry="${anchor}"]`) : null
+    if (!element || !sent) return
+    setAnchorRoom(element.clientHeight)
+    element.scrollTop = sent.offsetTop - parseFloat(getComputedStyle(element).paddingTop)
+  }, [anchor])
+
+  // The owner's own scroll lets the message go: the conversation follows its end again.
+  function release() {
+    if (anchor !== null) setAnchor(null)
+  }
 
   // Images and ad cards grow after they load: whoever is at the bottom stays there.
   useEffect(() => {
@@ -303,7 +327,7 @@ export function ChatStep({
     const content = element?.firstElementChild
     if (!element || !content) return
     const observer = new ResizeObserver(() => {
-      if (atBottom.current) element.scrollTop = element.scrollHeight
+      if (atBottom.current && !anchored.current) element.scrollTop = element.scrollHeight
     })
     observer.observe(content)
     return () => observer.disconnect()
@@ -329,7 +353,9 @@ export function ChatStep({
     const message = text.trim()
     if ((!message && files.length === 0) || working) return
     const attached = files
-    setEntries((current) => [...current, { id: nextId++, from: 'user', text: message, files: attached }])
+    const sentId = nextId++
+    setEntries((current) => [...current, { id: sentId, from: 'user', text: message, files: attached }])
+    if (window.matchMedia('(max-width: 639px)').matches) setAnchor(sentId)
     setDraft('')
     if (composer.current) composer.current.style.height = ''
     setFiles([])
@@ -401,6 +427,8 @@ export function ChatStep({
           <main
             className="chat-log"
             ref={log}
+            onTouchMove={release}
+            onWheel={release}
             onScroll={(event) => {
               const element = event.currentTarget
               atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
@@ -410,7 +438,7 @@ export function ChatStep({
             <Stack gap={6}>
               {entries.map((entry) =>
                 entry.from === 'user' ? (
-                  <Message key={entry.id} align="end">
+                  <Message key={entry.id} align="end" data-entry={entry.id}>
                     <MessageContent>
                       {entry.files && entry.files.length > 0 && <SentFiles files={entry.files} />}
                       {entry.sentPaths && entry.sentPaths.length > 0 && <SentPaths paths={entry.sentPaths} />}
@@ -465,6 +493,8 @@ export function ChatStep({
               )}
             </Stack>
             <div ref={end} />
+            {/* Room under the conversation while a sent message is held at the top (phone). */}
+            {anchorRoom > 0 && <div aria-hidden style={{ height: anchorRoom }} />}
           </main>
           {/* Spark beside the conversation, at its bottom: the messages scroll, it stays. Thinking while it works, idle otherwise. */}
           {thinking ? (
