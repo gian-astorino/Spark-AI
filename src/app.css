@@ -894,6 +894,8 @@ img.ad-visual {
     display: block;
     position: static;
     flex: none;
+    width: 3rem;
+    height: 3rem;
     margin-bottom: 0.25rem;
   }
 }
