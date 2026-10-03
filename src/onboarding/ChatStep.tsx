@@ -233,7 +233,11 @@ export function ChatStep({
           await Promise.all([refreshProfile(), refreshAds(fresh.flatMap((entry) => entry.ads ?? []))])
         }
         setActivity(state.activity)
-        if (state.status !== 'running') break
+        if (state.error) console.error('Agent turn failed:', state.error)
+        if (state.status !== 'running') {
+          if (state.error && state.entries.length === 0) setEntries((list) => [...list, say(AGENT_DOWN)])
+          break
+        }
         await new Promise((resolve) => setTimeout(resolve, RESUME_MS))
         next = { resume: true }
       }

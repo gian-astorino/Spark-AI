@@ -190,7 +190,14 @@ async function run(db: SupabaseClient, conversationId: string, businessId: strin
   ])
 
   const { data: conversation } = await db.from('conversations').select('status, turn').eq('id', conversationId).single()
-  if (conversation?.status !== 'running') return
+  if (!conversation) return
+  if (conversation.status !== 'running') {
+    // A turn that stopped on an error is tried again.
+    if (!(conversation.turn as { error?: string } | null)?.error) return
+    const { error: _, ...rest } = conversation.turn as Record<string, unknown>
+    await db.from('conversations').update({ status: 'running', turn: rest }).eq('id', conversationId)
+    conversation.turn = rest
+  }
   const turn = { rounds: 0, reads: 0, choices: [], ads: [], ...(conversation.turn as object) } as TurnState & {
     message?: string | null
   }
@@ -218,8 +225,10 @@ async function run(db: SupabaseClient, conversationId: string, businessId: strin
 
     turn.rounds++
     const finalRound = turn.rounds >= MAX_ROUNDS
-    const response = await anthropic.beta.messages
-      .stream({
+    let response: Anthropic.Beta.BetaMessage
+    try {
+      response = await anthropic.beta.messages
+        .stream({
         model: MODEL,
         max_tokens: 64000,
         betas: [FALLBACK_BETA, COMPACTION_BETA],
@@ -234,7 +243,17 @@ async function run(db: SupabaseClient, conversationId: string, businessId: strin
         cache_control: { type: 'ephemeral' },
         messages: history.map(({ role, content }) => ({ role, content })),
       })
-      .finalMessage()
+        .finalMessage()
+    } catch (failure) {
+      // The turn stops and the app is told; the owner's next message (or a reopening) tries again.
+      console.error('Model call failed', failure)
+      turn.rounds--
+      await db
+        .from('conversations')
+        .update({ status: 'idle', activity: null, turn: { ...turn, error: String(failure).slice(0, 2000) } })
+        .eq('id', conversationId)
+      return
+    }
 
     const text = response.content
       .flatMap((block) => (block.type === 'text' ? [block.text] : []))
@@ -313,7 +332,7 @@ function systemPrompt(skills: Skill[]) {
 /** Where the conversation stands, and what to show after `after`. */
 async function report(db: SupabaseClient, conversationId: string, after: number) {
   const [{ data: conversation }, entries] = await Promise.all([
-    db.from('conversations').select('status, activity').eq('id', conversationId).single(),
+    db.from('conversations').select('status, activity, turn').eq('id', conversationId).single(),
     db
       .from('messages')
       .select('id, role, display')
@@ -325,6 +344,7 @@ async function report(db: SupabaseClient, conversationId: string, after: number)
   return {
     status: conversation?.status === 'running' ? 'running' : 'idle',
     activity: conversation?.activity ?? null,
+    error: (conversation?.turn as { error?: string } | null)?.error ?? null,
     entries: (entries.data ?? []).map((row) => ({ id: row.id, role: row.role, ...(row.display as Record<string, unknown>) })),
   }
 }

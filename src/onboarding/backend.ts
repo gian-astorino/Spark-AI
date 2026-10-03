@@ -33,6 +33,8 @@ export interface AgentState {
   status: 'running' | 'idle'
   /** What Spark is doing right now, e.g. "Leggo example.com". */
   activity?: string
+  /** Why the turn stopped, when it failed: it is tried again on the next request. */
+  error?: string
   entries: AgentEntry[]
 }
 
@@ -46,7 +48,12 @@ export type AgentTurn = { message: string; attachments?: string[] } | { event: s
 export async function askAgent(businessId: string, turn: AgentTurn, after: number): Promise<AgentState> {
   const { data, error } = await supabase.functions.invoke('agent', { body: { business_id: businessId, after, ...turn } })
   if (error) throw error
-  return { status: data.status === 'running' ? 'running' : 'idle', activity: data.activity ?? undefined, entries: data.entries ?? [] }
+  return {
+    status: data.status === 'running' ? 'running' : 'idle',
+    activity: data.activity ?? undefined,
+    error: data.error ?? undefined,
+    entries: data.entries ?? [],
+  }
 }
 
 /** Uploads a file the owner attached; returns its id, the storage path the agent's tools take. */
