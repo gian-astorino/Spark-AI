@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Avatar, AvatarFallback, Button } from '@skyground-media/pipelean-design-system'
 // Inline, so its strokes take the container's colour (currentColor) and its animations run.
 import imagining from './imagining.svg?raw'
@@ -24,6 +24,7 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
   const latest = ad.images[ad.images.length - 1]
   const shown = [...ad.images].reverse().find((image) => image.status === 'done' && image.url)
   const making = latest?.status === 'running'
+  const [expanded, setExpanded] = useState(false)
 
   return (
     <article className="ad-card" aria-label={`Anteprima dell'inserzione ${ad.name}`}>
@@ -41,7 +42,11 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
         </span>
       </header>
 
-      {copy?.primary_text && <p className="ad-text">{copy.primary_text}</p>}
+      {copy?.primary_text && (
+        <button type="button" className="ad-text" aria-expanded={expanded} onClick={() => setExpanded((open) => !open)}>
+          {copy.primary_text}
+        </button>
+      )}
 
       {/* The image is the ad: its text is written by the image model, nothing is laid over it.
           Until there is one, the brand's colour (content, not our UI) and where it stands. */}

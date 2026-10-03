@@ -641,7 +641,7 @@ h6 {
 /* ---------- An ad: as it would look in a feed ---------- */
 
 .ad-card {
-  max-width: 26rem;
+  max-width: 20rem;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl-spark);
@@ -679,11 +679,28 @@ h6 {
 }
 
 .ad-text {
+  display: block;
+  width: 100%;
   margin: 0;
   padding: 0 0.875rem 0.75rem;
-  font-size: 0.875rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
   line-height: 1.45;
+  text-align: left;
   white-space: pre-line;
+  cursor: pointer;
+}
+
+/* Two lines, as a feed shows it, until it is tapped. */
+.ad-text[aria-expanded='false'] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .ad-visual {
