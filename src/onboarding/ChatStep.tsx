@@ -19,7 +19,6 @@ import {
   Inline,
   Message,
   MessageContent,
-  MessageGroup,
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import {
@@ -390,7 +389,8 @@ export function ChatStep({
               atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
             }}
           >
-            <MessageGroup>
+            {/* The design system's MessageGroup keeps its messages 8px apart: a Stack spaces them more. */}
+            <Stack gap={6}>
               {entries.map((entry) =>
                 entry.from === 'user' ? (
                   <Message key={entry.id} align="end">
@@ -443,7 +443,7 @@ export function ChatStep({
                   </MessageContent>
                 </Message>
               )}
-            </MessageGroup>
+            </Stack>
             <div ref={end} />
           </main>
           {/* Spark beside the conversation, at its bottom: the messages scroll, it stays. Thinking while it works, idle otherwise. */}
