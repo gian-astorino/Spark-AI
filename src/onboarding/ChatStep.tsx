@@ -154,10 +154,6 @@ export function ChatStep({
       seen.current = history[history.length - 1]?.id ?? 0
       setAds(Object.fromEntries(all.map((ad) => [ad.id, ad])))
       const restored = history.map(fromServer)
-      // Ads made before they were shown in the chat (the first proposals): the latest one closes it.
-      const shown = new Set(history.flatMap((entry) => entry.ads ?? []))
-      const unseen = all.find((ad) => !shown.has(ad.id))
-      if (unseen) restored.push(say('La tua ultima inserzione:', [unseen.id]))
       setEntries(restored.length ? restored : [say('Ciao di nuovo! Da dove riprendiamo?')])
       if (unfinished) void follow({ resume: true })
     } catch (error) {
