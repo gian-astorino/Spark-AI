@@ -219,9 +219,8 @@ export const PROFILE_TOOLS: ToolDef[] = [
           items: { type: 'string' },
           description: 'In Italian: the facts and wishes that came up (services, prices, hours, team, goals, doubts)',
         },
-        next_steps: { type: 'array', items: { type: 'string' }, description: 'In Italian: what was agreed to do next. Empty if nothing' },
       },
-      required: ['attachment', 'title', 'call_date', 'participants', 'summary', 'key_points', 'next_steps'],
+      required: ['attachment', 'title', 'call_date', 'participants', 'summary', 'key_points'],
       additionalProperties: false,
     },
   },
@@ -471,7 +470,7 @@ export async function runTool(
         participants: (input.participants as string[]).map((name) => name.trim()).filter(Boolean),
         summary: String(input.summary).trim(),
       }
-      const document = transcriptDocument(record, input.key_points as string[], input.next_steps as string[], transcript)
+      const document = transcriptDocument(record, input.key_points as string[], transcript)
       await check(db.from('call_transcripts').insert({ business_id: businessId, ...record, document, transcript }))
       return 'Transcript saved in Conversazioni.'
     }
@@ -495,14 +494,13 @@ export async function check<T extends { error: { message: string } | null }>(que
 }
 
 /**
- * The transcript as a document: title, date and people, the summary, key
- * points and next steps, then the transcript itself, untouched except for
+ * The transcript as a document: title, date and people, the summary and key
+ * points, then the transcript itself, untouched except for
  * the speakers' names set in bold.
  */
 function transcriptDocument(
   record: { title: string; call_date: string | null; participants: string[]; summary: string },
   keyPoints: string[],
-  nextSteps: string[],
   transcript: string,
 ) {
   const date = record.call_date
@@ -523,7 +521,6 @@ function transcriptDocument(
     '## Sintesi',
     record.summary,
     keyPoints.length > 0 && `## Punti chiave\n\n${list(keyPoints)}`,
-    nextSteps.length > 0 && `## Prossimi passi\n\n${list(nextSteps)}`,
     '## Trascrizione',
     lines,
   ]
