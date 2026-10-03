@@ -261,7 +261,7 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
 
     case 'offer_choices':
       ctx.turn.choices = (input.options as string[]).map(String).slice(0, 4)
-      return 'The options will be shown under your reply.'
+      return 'The options will be shown under your reply: write it now, as your final message.'
 
     case 'set_onboarding_status':
       await check(db.from('businesses').update({ onboarding_status: input.status }).eq('id', businessId))
