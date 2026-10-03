@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Markdown } from './Markdown.tsx'
 
 /** Milliseconds per word: quick, but readable as it arrives. */
-const WORD_MS = 18
+const WORD_MS = 40
 
 /**
  * A reply that has just arrived, written out word by word. Without motion
