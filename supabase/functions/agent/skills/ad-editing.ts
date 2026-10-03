@@ -10,9 +10,9 @@ export default {
 2. Look before you touch the image: view_image "ad_image:<id>" shows the current one.
 3. Copy or strategy: save_ad with its ad_id and the whole content as it should now be (what you leave out is cleared, so carry over what stays). Keep what the owner did not ask to change.
 4. Image: every change is a new image (creative-generation skill); the previous ones stay.
-   - To adjust the current image (a word, a colour, the price), call generate_ad_image with the current image as a reference ("ad_image:<id>") and a prompt that says exactly what to change and that everything else stays the same.
+   - To adjust the current image (a word, a colour, the price), call generate_ad_image with its id as edit_of and a prompt that says exactly what to change and that everything else stays the same.
    - To redo it, start over as for a new ad, with the new brief.
-   - Another format of the same ad (story, square): the current image as a reference and the new size.
+   - Another format of the same ad (story, square): its id as edit_of and the new size.
 5. A different ad altogether (another offer or target) is a new ad: save_ad with ad_id null, so both can be compared.
 6. Say in one or two sentences what changed.`,
 } satisfies Skill
