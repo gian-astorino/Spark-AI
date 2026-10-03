@@ -127,18 +127,9 @@ export function sectionProgress(profile: Profile, section: Section): { filled: n
       ])
     case 'tone':
       return count([!!profile.branding?.toneDescription, (profile.branding?.tone.length ?? 0) > 0])
-    case 'catalog': {
-      // Catalog items, then each of their details on every one of them. A
-      // duration only belongs to services: it counts once any item has one, so
-      // a catalog of products (a menu, a shop) is not left incomplete.
-      const timed = items.some((item) => item.durationMinutes != null)
-      return count([
-        items.length > 0,
-        items.length > 0 && items.every((item) => item.priceCents != null),
-        ...(timed ? [items.every((item) => item.durationMinutes != null)] : []),
-        items.length > 0 && items.every((item) => !!item.description),
-      ])
-    }
+    case 'catalog':
+      // One item is enough: the catalog is imported, whatever its details.
+      return count([items.length > 0])
     case 'calendar':
       return count([(profile.calendar?.members?.length ?? 0) > 0, !!profile.calendar?.tool])
   }
