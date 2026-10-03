@@ -135,9 +135,9 @@ export const PROFILE_TOOLS: ToolDef[] = [
         description: {
           type: 'string',
           description:
-            'Three to five sentences, in the language of the business: how it addresses clients (tu or lei, first names), register and warmth, typical vocabulary and phrases, sentence length, use of emoji and exclamation marks, what it avoids. Concrete enough to write a post or a reminder in that voice.',
+            'One or two short sentences, in the language of the business: how it addresses clients (tu or lei), its register and warmth, what makes its voice its own.',
         },
-        keywords: { type: 'array', items: { type: 'string' }, description: 'Three to five adjectives summing it up' },
+        keywords: { type: 'array', items: { type: 'string' }, description: 'Three adjectives summing it up' },
       },
       required: ['description', 'keywords'],
       additionalProperties: false,
