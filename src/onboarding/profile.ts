@@ -55,7 +55,6 @@ export interface Profile {
   branding?: {
     logoUrl?: string
     colors: { name: string; hex: string }[]
-    fonts: { role: 'heading' | 'body'; family: string }[]
     /** Keywords. */
     tone: string[]
     /** How the business talks, in a few sentences. */
@@ -68,10 +67,6 @@ export interface Profile {
      * turned down (then the original is the logo).
      */
     logoPending?: boolean
-    /** The brand board: logo, colours, fonts and a pattern in one image. */
-    boardUrl?: string
-    /** The board is on its way (with the logo, or after it). */
-    boardPending?: boolean
   }
   photos?: { url: string; caption?: string }[]
   catalog?: CatalogItem[]
@@ -99,7 +94,6 @@ export function hasSection(profile: Profile, section: Section) {
       return !!(
         profile.branding?.logoUrl ||
         profile.branding?.colors.length ||
-        profile.branding?.fonts.length ||
         profile.photos?.length
       )
     case 'tone':
@@ -130,7 +124,6 @@ export function sectionProgress(profile: Profile, section: Section): { filled: n
       return count([
         !!profile.branding?.logoUrl,
         (profile.branding?.colors.length ?? 0) > 0,
-        (profile.branding?.fonts.length ?? 0) > 0,
       ])
     case 'tone':
       return count([!!profile.branding?.toneDescription, (profile.branding?.tone.length ?? 0) > 0])

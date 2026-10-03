@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import {
   Avatar,
   AvatarFallback,
@@ -45,7 +44,7 @@ const SECTION_ICONS: Record<Section, IconSvgElement> = {
 const EMPTY_HINT: Record<Section, string> = {
   business: 'Nome, di cosa ti occupi e settore.',
   location: 'Indirizzo e orari di apertura.',
-  branding: 'Logo, colori, font e foto. Puoi allegarli in chat.',
+  branding: 'Logo, colori e foto. Puoi allegarli in chat.',
   tone: 'Come la tua attività parla ai clienti.',
   catalog: 'Elementi di catalogo con descrizione, prezzo e durata.',
   calendar: 'Il tuo team e il calendario che usi. Spark te lo chiederà in chat.',
@@ -245,7 +244,7 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
       )
     case 'branding': {
       // Photos alone make the section ready, without any branding from a site.
-      const b = profile.branding ?? { colors: [], fonts: [], tone: [] }
+      const b = profile.branding ?? { colors: [], tone: [] }
       const edit = () => onEdit({ kind: 'branding' })
       return (
         <Stack gap={4}>
@@ -273,24 +272,6 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
               </Inline>
             )
           )}
-          {b.boardPending ? (
-            <Stack gap={2}>
-              <ItemDescription>Branding</ItemDescription>
-              <span className="board board-loading">
-                <Spinner />
-                <ItemDescription>Sto creando il branding…</ItemDescription>
-              </span>
-            </Stack>
-          ) : (
-            b.boardUrl && (
-              <Stack gap={2}>
-                <ItemDescription>Branding</ItemDescription>
-                <button type="button" className="logo-button" aria-label="Vedi il branding" onClick={() => onEdit({ kind: 'board' })}>
-                  <img className="board" src={b.boardUrl} alt="Branding" />
-                </button>
-              </Stack>
-            )
-          )}
           <Editable label="Modifica branding" onClick={edit}>
             <Stack gap={4}>
               {b.colors.length > 0 && (
@@ -304,14 +285,6 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
                     </div>
                   ))}
                 </div>
-              )}
-              {b.fonts.length > 0 && (
-                <Stack gap={2}>
-                  <ItemDescription>Font</ItemDescription>
-                  {b.fonts.map((font) => (
-                    <FontSample key={font.role} role={font.role} family={font.family} />
-                  ))}
-                </Stack>
               )}
             </Stack>
           </Editable>
@@ -401,33 +374,6 @@ function SectionBody({ section, profile, onEdit }: { section: Section; profile: 
       )
     }
   }
-}
-
-/**
- * The font's name written in the font itself. Loaded from Google Fonts, where
- * most site fonts live; when it is not there the name falls back to the
- * system font and still reads fine.
- */
-function FontSample({ role, family }: { role: 'heading' | 'body'; family: string }) {
-  useEffect(() => {
-    const id = `font-${family.replace(/\W+/g, '-')}`
-    if (document.getElementById(id)) return
-    const link = document.createElement('link')
-    link.id = id
-    link.rel = 'stylesheet'
-    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}&display=swap`
-    document.head.append(link)
-  }, [family])
-
-  return (
-    <div className="font-sample">
-      {/* The family is content: the sample shows the brand's font, not ours. */}
-      <span className="font-sample-name" style={{ fontFamily: `"${family}", var(--font-sans)` }}>
-        {family}
-      </span>
-      <ItemDescription>{role === 'heading' ? 'Titoli' : 'Testo'}</ItemDescription>
-    </div>
-  )
 }
 
 interface Row {

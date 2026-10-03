@@ -142,7 +142,7 @@ export async function loadProfile(businessId: string): Promise<Profile> {
       .order('position'),
     supabase
       .from('brand_profiles')
-      .select('logo_path, logo_source_url, fonts, tone_of_voice, tone_description, logo_job_status, board_path, board_job_status')
+      .select('logo_path, logo_source_url, tone_of_voice, tone_description, logo_job_status')
       .eq('business_id', businessId)
       .maybeSingle(),
     supabase.from('brand_colors').select('name, hex').eq('business_id', businessId).order('position'),
@@ -183,11 +183,6 @@ export async function loadProfile(businessId: string): Promise<Profile> {
   }
 
   if (brand.data || colors.data?.length) {
-    let boardUrl: string | undefined
-    if (brand.data?.board_path) {
-      const { data } = await supabase.storage.from('logos').createSignedUrl(brand.data.board_path, 60 * 60)
-      boardUrl = data?.signedUrl
-    }
     const logoPending =
       !!brand.data?.logo_path &&
       !/\/logo-(hd\.png|square\.svg)$/.test(brand.data.logo_path) &&
@@ -200,16 +195,10 @@ export async function loadProfile(businessId: string): Promise<Profile> {
     profile.branding = {
       logoUrl,
       colors: (colors.data ?? []).map((color) => ({ name: color.name ?? '', hex: color.hex })),
-      fonts: brand.data?.fonts ?? [],
       tone: brand.data?.tone_of_voice ?? [],
       toneDescription: brand.data?.tone_description ?? undefined,
       logoJob: brand.data?.logo_job_status ?? undefined,
       logoPending,
-      boardUrl,
-      // Running, or not started yet while the logo it comes with is still on its way.
-      boardPending:
-        brand.data?.board_job_status === 'running' ||
-        (logoPending && !['failed', 'done'].includes(brand.data?.board_job_status ?? '')),
     }
   }
 

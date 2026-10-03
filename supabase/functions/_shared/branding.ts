@@ -4,8 +4,7 @@ import { requestLogoRefresh } from './logo.ts'
 
 // Branding from a business's own home page: logo and the site's colours.
 // The brand colours are then read from the logo and completed with the
-// site's (see logo.ts). Fonts are not taken from the site: the agent proposes
-// them, and the brand board picks its own.
+// site's (see logo.ts).
 // Used by the import (from the link it starts with) and by the research
 // (from the official site it finds).
 
@@ -45,10 +44,6 @@ export async function saveBranding(db: SupabaseClient, businessId: string, brand
           logo_job_id: null,
           logo_job_status: null,
           logo_error: null,
-          board_path: null,
-          board_job_id: null,
-          board_job_status: null,
-          board_error: null,
         }
       : {}),
     site_colors: siteColors(branding),

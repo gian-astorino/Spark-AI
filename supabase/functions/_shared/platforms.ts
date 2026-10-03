@@ -17,7 +17,7 @@ export function bookingPlatform(url: string): 'Fresha' | 'Treatwell' | null {
  * business of another industry never gets it. Other industries' platforms can
  * get guides of their own the same way.
  */
-export const PLATFORM_GUIDE = `About Fresha and Treatwell pages: for a business listed there, the page is the authority on the catalog, prices, durations and opening hours. Unless the catalog is already complete with prices, save its whole catalog in one save_catalog_items call. Once it is saved, remove with remove_catalog_item the entries from other sources that are generic duplicates of its items and have no price. When sources disagree, prefer the business's own website, then this page. Never take branding (logo, colours, fonts) from it.`
+export const PLATFORM_GUIDE = `About Fresha and Treatwell pages: for a business listed there, the page is the authority on the catalog, prices, durations and opening hours. Unless the catalog is already complete with prices, save its whole catalog in one save_catalog_items call. Once it is saved, remove with remove_catalog_item the entries from other sources that are generic duplicates of its items and have no price. When sources disagree, prefer the business's own website, then this page. Never take branding (logo, colours) from it.`
 
 // Readers for Fresha and Treatwell, booking platforms of beauty and wellness businesses. Their pages
 // show a few services on screen and load the rest on click, but the whole

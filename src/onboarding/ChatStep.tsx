@@ -181,9 +181,8 @@ export function ChatStep({
   }
 
   // While the logo is waiting for its recreation (its job may not even have
-  // started yet) or the brand board for its image, move them on and look
-  // again until both are in.
-  const imagesPending = !!profile.branding?.logoPending || !!profile.branding?.boardPending
+  // started yet), move it on and look again until it is in.
+  const imagesPending = !!profile.branding?.logoPending
   useEffect(() => {
     if (!imagesPending) return
     const timer = setInterval(async () => {

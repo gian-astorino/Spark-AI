@@ -20,7 +20,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { checkAdImages } from '../_shared/ad-images.ts'
 import { anthropic, FALLBACK_BETA, MODEL, visualBlock } from '../_shared/claude.ts'
 import { documentKind, documentText } from '../_shared/documents.ts'
-import { checkBoard, checkLogo } from '../_shared/logo.ts'
+import { checkLogo } from '../_shared/logo.ts'
 import { snapshot } from '../_shared/snapshot.ts'
 import { loadSkills, type Skill } from './skills/index.ts'
 import { runAgentTool, TOOLS, type TurnState } from './tools.ts'
@@ -186,7 +186,6 @@ async function run(db: SupabaseClient, conversationId: string, businessId: strin
   // Work started elsewhere moves on with every request.
   await Promise.all([
     checkLogo(db, businessId).catch((failure) => console.error('Logo check failed', failure)),
-    checkBoard(db, businessId).catch((failure) => console.error('Board check failed', failure)),
     checkAdImages(db, businessId).catch((failure) => console.error('Ad image check failed', failure)),
   ])
 

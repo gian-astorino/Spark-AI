@@ -301,18 +301,6 @@ h6 {
   background: var(--background);
 }
 
-.font-sample {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.font-sample-name {
-  font-size: 1.375rem;
-  line-height: 1.2;
-}
-
 /* ---------- Chat content ---------- */
 
 .markdown > * {
@@ -400,7 +388,7 @@ h6 {
   cursor: zoom-in;
 }
 
-/* The dialog the logo and the board open in: as wide as the screen allows
+/* The dialog the logo opens in: as wide as the screen allows
    (the DS dialog is sized for forms and takes no class of ours). */
 [data-slot='dialog-content']:has(.image-large) {
   width: min(92vw, 1400px);
@@ -768,25 +756,6 @@ img.ad-visual {
   display: grid;
   place-items: center;
   background: var(--muted);
-}
-
-/* The brand board: a wide image, full width in the panel. */
-.board {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: var(--radius-lg-spark);
-  border: 1px solid var(--border);
-  background: var(--muted);
-}
-
-.board-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
 /* The source step's icon: the right book stands, then falls onto the others

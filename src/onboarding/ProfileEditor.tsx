@@ -47,7 +47,6 @@ export type Editing =
   | { kind: 'catalog'; item?: CatalogItem }
   | { kind: 'calendar' }
   | { kind: 'logo' }
-  | { kind: 'board' }
   | { kind: 'conversation'; conversation: Conversation }
 
 const WEEKDAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
@@ -72,8 +71,6 @@ export function ProfileEditor({
         <DialogContent>
           {editing.kind === 'logo' ? (
             <LogoView url={profile.branding?.logoUrl} />
-          ) : editing.kind === 'board' ? (
-            <BoardView url={profile.branding?.boardUrl} />
           ) : editing.kind === 'conversation' ? (
             <ConversationView conversation={editing.conversation} />
           ) : (
@@ -101,22 +98,6 @@ function LogoView({ url }: { url?: string }) {
       {url && (
         <a href={url} target="_blank" rel="noreferrer" title="Apri a piena risoluzione">
           <img className="image-large logo-large" src={url} alt="Logo" />
-        </a>
-      )}
-    </>
-  )
-}
-
-function BoardView({ url }: { url?: string }) {
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Branding</DialogTitle>
-        <DialogDescription>Logo, colori, font e pattern del tuo brand. Si aggiorna quando cambi il logo.</DialogDescription>
-      </DialogHeader>
-      {url && (
-        <a href={url} target="_blank" rel="noreferrer" title="Apri a piena risoluzione">
-          <img className="image-large" src={url} alt="Branding" />
         </a>
       )}
     </>
@@ -165,7 +146,7 @@ function Form({
   businessId,
   onDone,
 }: {
-  editing: Exclude<Editing, { kind: 'logo' } | { kind: 'board' } | { kind: 'conversation' }>
+  editing: Exclude<Editing, { kind: 'logo' } | { kind: 'conversation' }>
   profile: Profile
   businessId: () => Promise<string>
   onDone: () => void
@@ -342,8 +323,6 @@ function BrandingForm({
   const [colors, setColors] = useState(
     BRAND_COLOR_NAMES.map((name, index) => ({ name, hex: brand?.colors[index]?.hex ?? '' })),
   )
-  const [headingFont, setHeadingFont] = useState(brand?.fonts.find((font) => font.role === 'heading')?.family ?? '')
-  const [bodyFont, setBodyFont] = useState(brand?.fonts.find((font) => font.role === 'body')?.family ?? '')
   return (
     <>
       <DialogHeader>
@@ -373,10 +352,8 @@ function BrandingForm({
             </Inline>
           ))}
         </Stack>
-        <TextField label="Font dei titoli" value={headingFont} onChange={setHeadingFont} placeholder="Playfair Display" />
-        <TextField label="Font del testo" value={bodyFont} onChange={setBodyFont} placeholder="Inter" />
       </Stack>
-      {footer({ colors, headingFont, bodyFont })}
+      {footer({ colors })}
     </>
   )
 }

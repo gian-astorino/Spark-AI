@@ -5,7 +5,7 @@ export async function snapshot(db: SupabaseClient, businessId: string) {
   const [business, locations, brand, colors, catalog, team, calendar, photos, calls, ads, notes] = await Promise.all([
     db.from('businesses').select('name, description, sector, website_url, onboarding_status').eq('id', businessId).single(),
     db.from('locations').select('name, address, opening_hours(weekday, opens_at, closes_at)').eq('business_id', businessId),
-    db.from('brand_profiles').select('logo_path, fonts, tone_of_voice, tone_description').eq('business_id', businessId).maybeSingle(),
+    db.from('brand_profiles').select('logo_path, tone_of_voice, tone_description').eq('business_id', businessId).maybeSingle(),
     db.from('brand_colors').select('name, hex').eq('business_id', businessId),
     db.from('catalog_items').select('name, category, price_cents, duration_minutes, description').eq('business_id', businessId).order('position'),
     db.from('team_members').select('display_name').eq('business_id', businessId).order('position'),
@@ -32,7 +32,6 @@ export async function snapshot(db: SupabaseClient, businessId: string) {
     }),
     `Logo: ${brand.data?.logo_path ? 'yes' : missing}`,
     `Brand colours: ${colors.data?.length ? colors.data.map((c) => `${c.name} ${c.hex}`).join(', ') : missing}`,
-    `Fonts: ${(brand.data?.fonts as { role: string; family: string }[] | undefined)?.map((f) => `${f.role} ${f.family}`).join(', ') || missing}`,
     `Photos kept: ${photos.count ?? 0}`,
     `Tone of voice: ${brand.data?.tone_description ?? (brand.data?.tone_of_voice?.length ? `only keywords so far: ${brand.data.tone_of_voice.join(', ')}` : missing)}`,
     `Catalog (${catalog.data?.length ?? 0} items):${catalog.data?.length ? '' : ` ${missing}`}`,

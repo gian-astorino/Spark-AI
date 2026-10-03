@@ -2,7 +2,6 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { visualBlock } from '../_shared/claude.ts'
 import { dataUrl, startImageJob } from '../_shared/image-jobs.ts'
-import { refreshBoard } from '../_shared/logo.ts'
 import { check, ownAttachment, PROFILE_TOOLS, runTool, type ToolDef, type ToolOutput } from '../_shared/profile-tools.ts'
 import { RESEARCH_TOOLS, runResearchTool } from '../_shared/research-tools.ts'
 import { snapshot } from '../_shared/snapshot.ts'
@@ -50,7 +49,7 @@ const KERNEL: ToolDef[] = [
   {
     name: 'view_image',
     description:
-      'Look at an image: "logo", "brand_board", "ad_image:<id>", "photo:<id>", or an attachment id of the owner\'s.',
+      'Look at an image: "logo", "ad_image:<id>", "photo:<id>", or an attachment id of the owner\'s.',
     input_schema: {
       type: 'object',
       properties: { source: { type: 'string' } },
@@ -67,11 +66,6 @@ const KERNEL: ToolDef[] = [
       required: ['status'],
       additionalProperties: false,
     },
-  },
-  {
-    name: 'refresh_brand_board',
-    description: 'Make a new brand board image from the current logo, colours and fonts (in the background).',
-    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
   },
   {
     name: 'save_ad',
@@ -132,7 +126,7 @@ const KERNEL: ToolDef[] = [
         references: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Images to pass along: "brand_board", "logo", "ad_image:<id>", "photo:<id>", attachment ids. Can be empty.',
+          description: 'Images to pass along: "logo", "ad_image:<id>", "photo:<id>", attachment ids. Can be empty.',
         },
         size: {
           type: 'string',
@@ -250,10 +244,6 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
     case 'set_onboarding_status':
       await check(db.from('businesses').update({ onboarding_status: input.status }).eq('id', businessId))
       return 'Saved.'
-
-    case 'refresh_brand_board':
-      await refreshBoard(db, businessId)
-      return 'A new brand board is being made in the background.'
 
     case 'save_ad': {
       const content = { objective: input.objective ?? null, strategy: input.strategy, copy: input.copy, creative: input.creative }
@@ -416,10 +406,10 @@ async function resolveImage(
 ): Promise<{ bytes: Uint8Array; type: string; name: string } | null> {
   let bucket: string
   let path: string | null | undefined
-  if (source === 'logo' || source === 'brand_board') {
-    const { data } = await db.from('brand_profiles').select('logo_path, board_path').eq('business_id', businessId).maybeSingle()
+  if (source === 'logo') {
+    const { data } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
     bucket = 'logos'
-    path = source === 'logo' ? data?.logo_path : data?.board_path
+    path = data?.logo_path
   } else if (source.startsWith('ad_image:')) {
     const { data } = await db
       .from('ad_images')

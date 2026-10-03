@@ -12,10 +12,6 @@ import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 // the same logo. SVG logos, already sharp at any size, are only centred on a
 // square canvas.
 //
-// Next to the recreation, from the same logo, a brand board: one wide image
-// with the logo, the colours, the fonts and a pattern, texture or gradient
-// for its graphics (startBoard, checkBoard).
-//
 // The recreation runs as an OpenAI background job, started here and checked by
 // the app (checkLogo): no request waits for the image model, and no pixels are
 // decoded in the function (its CPU budget is two seconds).
@@ -83,9 +79,6 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
 
     if (isSvg) {
       update.logo_path = await squareSvgLogo(db, businessId, await file.text())
-      // The image model takes no SVG: without a picture of the logo, no board.
-      update.board_job_status = 'failed'
-      update.board_error = 'SVG logo: the image model takes no SVG as a reference'
     } else {
       // 2. A larger copy of a thumbnail when its address leads to one, then the recreation job.
       let source = new Uint8Array(await file.arrayBuffer())
@@ -112,25 +105,11 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
         background: 'opaque',
       })
       update.logo_job_status = 'running'
-
-      // 3. The brand board, from the same picture of the logo.
-      try {
-        update.board_job_id = await startBoard(db, businessId, seen, colors)
-        update.board_job_status = 'running'
-        update.board_error = null
-      } catch (failure) {
-        update.board_job_status = 'failed'
-        update.board_error = String(failure).slice(0, 2000)
-      }
     }
   } catch (failure) {
     failures.push(String(failure))
     // No recreation coming: the app stops waiting and shows the original.
     update.logo_job_status = 'failed'
-    if (!update.board_job_status) {
-      update.board_job_status = 'failed'
-      update.board_error = String(failure).slice(0, 2000)
-    }
   }
   await db
     .from('brand_profiles')
@@ -180,68 +159,6 @@ export async function checkLogo(db: SupabaseClient, businessId: string): Promise
   const path = `${businessId}/logo-hd.png`
   await db.storage.from('logos').upload(path, state.png, { contentType: 'image/png', upsert: true })
   await db.from('brand_profiles').update({ logo_path: path, logo_job_status: 'done' }).eq('business_id', businessId)
-  return 'done'
-}
-
-/** Starts the brand board: the logo as the reference, the sector and colours in the prompt. */
-async function startBoard(db: SupabaseClient, businessId: string, logo: string, colors: string[]) {
-  const { data: business } = await db.from('businesses').select('name').eq('id', businessId).maybeSingle()
-  const prompt = [
-    // No sector: the board follows the logo, not ideas about an industry.
-    `Design a brand board for ${business?.name ? `"${business.name}"` : 'a business'}, built around the attached logo.`,
-    'The board contains only these four elements, laid out cleanly on a calm background with generous white space:',
-    '1. The logo, exactly as attached: the same shapes, lettering and colours, never redrawn or restyled.',
-    `2. The colour palette as swatches${colors.length ? `: exactly these colours, ${colors.join(', ')}, each with its hex code written under it` : ', taken from the logo, each with its hex code written under it'}.`,
-    '3. Fonts, preferably sans-serif.',
-    '4. A pattern, texture or gradient for the brand\'s graphics.',
-    'Nothing else: no photographs, mockups, products, people, taglines, slogans, extra words or watermarks. Flat, sharp, professional, like a page of a brand guidelines book.',
-  ].join('\n')
-  return await startImageJob({ prompt, images: [logo], action: 'edit', size: BOARD_SIZE, background: 'opaque' })
-}
-
-// The largest size gpt-image-2.5 makes without going experimental (above 2560x1440).
-const BOARD_SIZE = '2560x1440'
-
-/**
- * A new brand board from the profile as it is: its current logo and palette.
- * The logo stays as it is.
- */
-export async function refreshBoard(db: SupabaseClient, businessId: string) {
-  const [{ data: brand }, { data: colors }] = await Promise.all([
-    db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle(),
-    db.from('brand_colors').select('hex').eq('business_id', businessId).order('position'),
-  ])
-  if (!brand?.logo_path || brand.logo_path.endsWith('.svg')) throw new Error('No raster logo to build a board on')
-  const { data: file } = await db.storage.from('logos').download(brand.logo_path)
-  if (!file) throw new Error(`Logo not found in storage: ${brand.logo_path}`)
-  const flat = await flattenForModels(new Uint8Array(await file.arrayBuffer()), file.type || 'image/png')
-  const jobId = await startBoard(db, businessId, dataUrl(flat.type, flat.bytes), (colors ?? []).map((color) => color.hex))
-  await db
-    .from('brand_profiles')
-    .update({ board_job_id: jobId, board_job_status: 'running', board_error: null })
-    .eq('business_id', businessId)
-}
-
-/** Where the brand board stands; once its job is done, stores it next to the logo. */
-export async function checkBoard(db: SupabaseClient, businessId: string): Promise<string> {
-  const { data: brand } = await db
-    .from('brand_profiles')
-    .select('board_job_id, board_job_status')
-    .eq('business_id', businessId)
-    .maybeSingle()
-  if (!brand?.board_job_id || brand.board_job_status !== 'running') return brand?.board_job_status ?? 'none'
-  const state = await checkImageJob(brand.board_job_id)
-  if (state.status === 'running') return 'running'
-  if (state.status === 'failed') {
-    await db
-      .from('brand_profiles')
-      .update({ board_job_status: 'failed', board_error: state.error.slice(0, 2000) })
-      .eq('business_id', businessId)
-    return 'failed'
-  }
-  const path = `${businessId}/branding.png`
-  await db.storage.from('logos').upload(path, state.png, { contentType: 'image/png', upsert: true })
-  await db.from('brand_profiles').update({ board_path: path, board_job_status: 'done' }).eq('business_id', businessId)
   return 'done'
 }
 

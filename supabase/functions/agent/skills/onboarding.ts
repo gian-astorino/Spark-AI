@@ -11,7 +11,7 @@ The profile is what every other skill builds on: strategies, ads and anything wr
 ## What the profile needs
 - Business: name, description, sector.
 - Location: address and opening hours, if the business has a place customers visit.
-- Branding: logo, colours, fonts, tone of voice (see the brand-identity skill).
+- Branding: logo, colours, tone of voice (see the brand-identity skill).
 - Catalog: the products or services it sells, with description, price and, for services, duration.
 - Calendar: the names of the people who take appointments, and which calendar or booking tool they use today.
 
