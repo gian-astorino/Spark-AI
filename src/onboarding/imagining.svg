@@ -5,7 +5,7 @@
 .m-rot{transform-box:view-box;transform-origin:8px 8px;animation:m-rot 9s linear infinite}
 .m-rot2{animation-delay:-3s}
 @keyframes m-rot{to{transform:rotate(360deg)}}
-@keyframes m-cloud{0%{transform:scale(.45);animation-timing-function:cubic-bezier(.35,0,.5,1)}100%{transform:scale(1.45)}}
+@keyframes m-cloud{0%{transform:scale(.45);animation-timing-function:cubic-bezier(.35,0,.5,1)}100%{transform:scale(1.18)}}
 .m-fade{animation:m-fade 3s infinite}
 @keyframes m-fade{0%{opacity:0;animation-timing-function:cubic-bezier(.45,0,.55,1)}45%{opacity:.16;animation-timing-function:cubic-bezier(.45,0,.55,1)}100%{opacity:0}}
 </style>
