@@ -44,7 +44,7 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
 
       {copy?.primary_text && (
         <button type="button" className="ad-text" aria-expanded={expanded} onClick={() => setExpanded((open) => !open)}>
-          {copy.primary_text}
+          {expanded ? copy.primary_text : truncate(copy.primary_text)}
         </button>
       )}
 
@@ -78,4 +78,14 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
       </footer>
     </article>
   )
+}
+
+/** The text's start on one line, cut at a word and closed with "…", as a feed shows it. */
+const PREVIEW_CHARS = 90
+
+function truncate(text: string) {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (flat.length <= PREVIEW_CHARS) return flat
+  const cut = flat.slice(0, PREVIEW_CHARS)
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 40 ? cut.lastIndexOf(' ') : PREVIEW_CHARS).replace(/[\s,.;:!?–-]+$/, '')}…`
 }

@@ -694,14 +694,6 @@ h6 {
   cursor: pointer;
 }
 
-/* Two lines, as a feed shows it, until it is tapped. */
-.ad-text[aria-expanded='false'] {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-}
 
 .ad-visual {
   display: block;
