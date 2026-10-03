@@ -117,19 +117,24 @@ const KERNEL: ToolDef[] = [
   {
     name: 'generate_ad_image',
     description:
-      'Generate a new image for an ad with the image model, from your prompt alone: no logo, photos or attachments go with it. To change an image already made, give it as edit_of. Runs in the background (a minute or two); the ad card shows it when ready.',
+      'Generate a new image for an ad with the image model, from your prompt. To change an image already made, give it as edit_of. Images go with the prompt only when the owner asked for them (their logo, a photo, an image they sent): give them as include. Runs in the background (a minute or two); the ad card shows it when ready.',
     input_schema: {
       type: 'object',
       properties: {
         ad_id: { type: 'string' },
         prompt: { type: 'string', description: 'In English or Italian; any text to appear on the image quoted exactly' },
         edit_of: nullable('string', 'The id of an image of this ad to change; null for a new image'),
+        include: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Only what the owner asked to see in the image: "logo", "photo:<id>", attachment ids. Usually empty.',
+        },
         size: {
           type: 'string',
           enum: ['2048x2048', '1440x2560', '2560x1440', '1024x1024', '1024x1536', '1536x1024'],
         },
       },
-      required: ['ad_id', 'prompt', 'edit_of', 'size'],
+      required: ['ad_id', 'prompt', 'edit_of', 'include', 'size'],
       additionalProperties: false,
     },
   },
@@ -260,13 +265,19 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
       const adId = String(input.ad_id)
       const { data: ad } = await db.from('ads').select('id').eq('id', adId).eq('business_id', businessId).maybeSingle()
       if (!ad) return `No ad with id ${adId}.`
-      // The prompt alone, or the ad's own image when it is a change to it: nothing else goes to the image model.
+      // The prompt, the ad's own image when it is a change to it, and what the owner asked to include.
       const references: string[] = []
       if (typeof input.edit_of === 'string' && input.edit_of) {
         const { data: own } = await db.from('ad_images').select('id').eq('id', input.edit_of).eq('ad_id', adId).maybeSingle()
         const image = own ? await resolveImage(db, businessId, `ad_image:${own.id}`) : null
         if (!image) return `No finished image ${input.edit_of} on this ad to change.`
         references.push(dataUrl(image.type, image.bytes))
+      }
+      const missing: string[] = []
+      for (const source of Array.isArray(input.include) ? (input.include as string[]) : []) {
+        const image = source.startsWith('ad_image:') ? null : await resolveImage(db, businessId, source)
+        if (image && !image.type.includes('svg')) references.push(dataUrl(image.type, image.bytes))
+        else missing.push(source)
       }
       ctx.activity("Avvio l'immagine")
       const size = String(input.size)
@@ -284,7 +295,7 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
           .single(),
       )
       if (!ctx.turn.ads.includes(adId)) ctx.turn.ads.push(adId)
-      return `Image ${image!.id} started; it will appear on the ad card in a minute or two.`
+      return `Image ${image!.id} started; it will appear on the ad card in a minute or two.${missing.length ? ` Not found or not usable, left out: ${missing.join(', ')}.` : ''}`
     }
 
     case 'save_note': {

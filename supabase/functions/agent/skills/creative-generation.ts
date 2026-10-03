@@ -15,7 +15,9 @@ A good prompt says:
 - that it is a high-converting ad, approached as a performance marketer would;
 - the exact text to appear on the image, in quotes, as few words as possible.
 
-Leave the brand out: no logo, brand colours, fonts or brand style in the prompt. Only the prompt goes to the image model, no images with it (except the ad's own image, when changing it).
+Leave the brand out: no logo, brand colours, fonts or brand style in the prompt, and no images with it (except the ad's own image, when changing it).
+
+When the owner asks for something of theirs in the image (their logo, a photo of the business, an image they sent), pass it with include and say in the prompt what it is and where it goes, e.g. "Place the attached logo small in a corner, exactly as it is".
 
 The image model writes all the text on the image itself: nothing is laid over it later.`,
 } satisfies Skill
