@@ -153,14 +153,13 @@ export function ChatStep({
   /** The first time there is something to show, it is shown from the bottom at once. */
   const arrived = useRef(false)
   /**
-   * On a phone, the message just sent is held at the top of the conversation
-   * while the reply comes in under it, until the owner scrolls: its id, and
-   * the room left under the conversation so it can stay up there.
+   * On a phone, the message just sent: the conversation follows the reply
+   * coming in under it until that message reaches the top, then holds it
+   * there, until the owner scrolls.
    */
   const [anchor, setAnchor] = useState<number | null>(null)
-  const [anchorRoom, setAnchorRoom] = useState(0)
-  const anchored = useRef(false)
-  anchored.current = anchor !== null
+  const anchorRef = useRef<number | null>(null)
+  anchorRef.current = anchor
   const business = useRef<Promise<string> | null>(null)
   /** The last server message on screen: the agent sends what comes after it. */
   const seen = useRef(0)
@@ -307,18 +306,19 @@ export function ChatStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the conversation, not the anchor
   }, [entries, working])
 
-  // The message just sent goes to the top: first the room under it to stay there, then the scroll
-  // (before the room is laid out the conversation is too short, and the scroll stops at its end).
-  useLayoutEffect(() => {
-    if (anchor !== null && log.current) setAnchorRoom(log.current.clientHeight)
-  }, [anchor])
-  useLayoutEffect(() => {
+  /** Scrolls as far as the end allows, but never past the held message's top. */
+  function followToAnchor() {
     const element = log.current
-    const sent = anchor !== null ? element?.querySelector<HTMLElement>(`[data-entry="${anchor}"]`) : null
-    if (!element || !sent || anchorRoom === 0) return
-    const top = sent.getBoundingClientRect().top - element.getBoundingClientRect().top
-    element.scrollTop += top - parseFloat(getComputedStyle(element).paddingTop)
-  }, [anchor, anchorRoom])
+    const sent = anchorRef.current !== null ? element?.querySelector<HTMLElement>(`[data-entry="${anchorRef.current}"]`) : null
+    if (!element || !sent) return false
+    const top = element.scrollTop + sent.getBoundingClientRect().top - element.getBoundingClientRect().top
+    const held = top - parseFloat(getComputedStyle(element).paddingTop)
+    element.scrollTop = Math.min(held, element.scrollHeight - element.clientHeight)
+    return true
+  }
+  useLayoutEffect(() => {
+    followToAnchor()
+  }, [anchor])
 
   // The owner's own scroll lets the message go: the conversation follows its end again.
   function release() {
@@ -331,7 +331,8 @@ export function ChatStep({
     const content = element?.firstElementChild
     if (!element || !content) return
     const observer = new ResizeObserver(() => {
-      if (atBottom.current && !anchored.current) element.scrollTop = element.scrollHeight
+      if (followToAnchor()) return
+      if (atBottom.current) element.scrollTop = element.scrollHeight
     })
     observer.observe(content)
     return () => observer.disconnect()
@@ -497,8 +498,6 @@ export function ChatStep({
               )}
             </Stack>
             <div ref={end} />
-            {/* Room under the conversation while a sent message is held at the top (phone). */}
-            {anchorRoom > 0 && <div aria-hidden style={{ height: anchorRoom }} />}
           </main>
           {/* Spark beside the conversation, at its bottom: the messages scroll, it stays. Thinking while it works, idle otherwise. */}
           {thinking ? (
