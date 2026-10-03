@@ -882,6 +882,26 @@ img.ad-visual {
   }
 }
 
+/* A reply that has just arrived: its words fade in one after the other
+   (the delay of each is set on it, see TypedMarkdown). */
+.typed-word {
+  opacity: 0;
+  animation: word-in 400ms ease-out forwards;
+}
+
+@keyframes word-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typed-word {
+    opacity: 1;
+    animation: none;
+  }
+}
+
 /* What Spark is doing, next to its typing indicator. */
 .agent-activity {
   font-size: 0.875rem;

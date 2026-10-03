@@ -1,29 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Markdown } from './Markdown.tsx'
 
-/** Milliseconds per word: quick, but readable as it arrives. */
+/** Milliseconds between one word and the next. */
 const WORD_MS = 40
+/** How long a word takes to fade in (as .typed-word in app.css). */
+const FADE_MS = 400
+
+/** A node of the rendered tree, as much of it as the plugin touches. */
+interface TreeNode {
+  type: string
+  value?: string
+  tagName?: string
+  properties?: Record<string, unknown>
+  children?: TreeNode[]
+}
 
 /**
- * A reply that has just arrived, written out word by word. Without motion
- * (the owner's system setting) it is shown whole at once.
+ * A reply that has just arrived, its words fading in one after the other.
+ * The whole text is laid out at once, invisible, so nothing moves while it
+ * appears. Without motion (the owner's system setting) it shows at once.
  */
-export function TypedMarkdown({ children, onDone }: { children: string; /** Once the whole reply is out. */ onDone?: () => void }) {
-  // Words with the spaces and line breaks that follow them, so the Markdown is rebuilt as written.
-  const [words] = useState(() => children.match(/\S+\s*|\s+/g) ?? [])
-  const [count, setCount] = useState(() =>
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches ? words.length : 0,
+export function TypedMarkdown({ children, onDone }: { children: string; /** Once the last word is in. */ onDone?: () => void }) {
+  const words = useRef(0)
+  // Every word of the text becomes a span that fades in after the one before it.
+  const plugins = useMemo(
+    () => [
+      () => (tree: TreeNode) => {
+        let index = 0
+        const walk = (node: TreeNode) => {
+          if (!node.children) return
+          node.children = node.children.flatMap((child): TreeNode[] => {
+            if (child.type !== 'text' || !child.value) {
+              walk(child)
+              return [child]
+            }
+            return child.value
+              .split(/(\s+)/)
+              .filter(Boolean)
+              .map((part) =>
+                /^\s+$/.test(part)
+                  ? { type: 'text', value: part }
+                  : {
+                      type: 'element',
+                      tagName: 'span',
+                      properties: { className: ['typed-word'], style: `animation-delay: ${index++ * WORD_MS}ms` },
+                      children: [{ type: 'text', value: part }],
+                    },
+              )
+          })
+        }
+        walk(tree)
+        words.current = index
+      },
+    ],
+    [],
   )
 
   useEffect(() => {
-    if (count >= words.length) {
-      onDone?.()
-      return
-    }
-    const timer = setTimeout(() => setCount((shown) => shown + 1), WORD_MS)
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timer = setTimeout(() => onDone?.(), still ? 0 : words.current * WORD_MS + FADE_MS)
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone is called once, when the last word is out
-  }, [count, words.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the text it was given
+  }, [])
 
-  return <Markdown>{count >= words.length ? children : words.slice(0, count).join('')}</Markdown>
+  return <Markdown rehypePlugins={plugins}>{children}</Markdown>
 }
