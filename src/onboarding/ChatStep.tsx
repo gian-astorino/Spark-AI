@@ -333,6 +333,7 @@ export function ChatStep({
   }
 
   const thinking = working
+  const lastId = entries[entries.length - 1]?.id
   const busy = working
   const panel = (titled: boolean) => (
     <ProfilePanel profile={profile} sectionState={sectionState} onEdit={setEditing} titled={titled} />
@@ -397,42 +398,49 @@ export function ChatStep({
                   </MessageContent>
                 </Message>
               ) : (
-                <Message key={entry.id}>
-                  <MessageContent>
-                    <Stack gap={3}>
-                      <Bubble variant="ghost">
-                        <BubbleContent>
-                          {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
-                        </BubbleContent>
-                      </Bubble>
-                      {entry.ads && entry.ads.some((id) => ads[id]) && (
-                        // One or more ads on one row, scrolled sideways.
-                        <div className="ad-carousel">
-                          {entry.ads.map((id) => (ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null))}
-                        </div>
-                      )}
-                    </Stack>
-                  </MessageContent>
-                </Message>
+                <div key={entry.id} className="agent-row">
+                  <Message>
+                    <MessageContent>
+                      <Stack gap={3}>
+                        <Bubble variant="ghost">
+                          <BubbleContent>
+                            {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
+                          </BubbleContent>
+                        </Bubble>
+                        {entry.ads && entry.ads.some((id) => ads[id]) && (
+                          // One or more ads on one row, scrolled sideways.
+                          <div className="ad-carousel">
+                            {entry.ads.map((id) => (ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null))}
+                          </div>
+                        )}
+                      </Stack>
+                    </MessageContent>
+                  </Message>
+                  {!thinking && entry.id === lastId && <SparkAvatar svg={idleLoop} />}
+                </div>
               ),
             )}
-            {/* Spark at the end of the conversation: thinking while it works, idle otherwise. */}
-            <Message>
-              <MessageContent>
-                <Bubble variant="ghost">
-                  <BubbleContent>
-                    {thinking ? (
-                      <Inline gap={2} align="center">
-                        <span className="thinking" role="img" aria-label="Spark sta lavorando" dangerouslySetInnerHTML={{ __html: thinkingLoop }} />
+            {/* Spark at the end of the conversation, at the side of its last words: thinking while it works, idle otherwise. */}
+            {thinking ? (
+              <div className="agent-row">
+                <Message>
+                  <MessageContent>
+                    <Bubble variant="ghost">
+                      <BubbleContent>
                         <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
-                      </Inline>
-                    ) : (
-                      <span className="thinking" aria-hidden dangerouslySetInnerHTML={{ __html: idleLoop }} />
-                    )}
-                  </BubbleContent>
-                </Bubble>
-              </MessageContent>
-            </Message>
+                      </BubbleContent>
+                    </Bubble>
+                  </MessageContent>
+                </Message>
+                <SparkAvatar svg={thinkingLoop} label="Spark sta lavorando" />
+              </div>
+            ) : (
+              entries[entries.length - 1]?.from !== 'agent' && (
+                <div className="agent-row agent-row-empty">
+                  <SparkAvatar svg={idleLoop} />
+                </div>
+              )
+            )}
           </MessageGroup>
           <div ref={end} />
         </main>
@@ -610,4 +618,13 @@ function SentPaths({ paths }: { paths: string[] }) {
 function grow(textarea: HTMLTextAreaElement) {
   textarea.style.height = ''
   textarea.style.height = `${Math.min(textarea.scrollHeight, 5 * 24)}px`
+}
+
+/** Spark's avatar, an animation inline so it takes the text colour and moves. */
+function SparkAvatar({ svg, label }: { svg: string; label?: string }) {
+  return label ? (
+    <span className="spark-avatar" role="img" aria-label={label} dangerouslySetInnerHTML={{ __html: svg }} />
+  ) : (
+    <span className="spark-avatar" aria-hidden dangerouslySetInnerHTML={{ __html: svg }} />
+  )
 }
