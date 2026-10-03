@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Markdown } from './Markdown.tsx'
 
 /** Milliseconds between one word and the next. */
-const WORD_MS = 40
+const WORD_MS = 25
 /** How long a word takes to fade in (as .typed-word in app.css). */
-const FADE_MS = 400
+const FADE_MS = 300
 
 /** A node of the rendered tree, as much of it as the plugin touches. */
 interface TreeNode {

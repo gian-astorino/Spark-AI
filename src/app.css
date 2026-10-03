@@ -886,7 +886,7 @@ img.ad-visual {
    (the delay of each is set on it, see TypedMarkdown). */
 .typed-word {
   opacity: 0;
-  animation: word-in 400ms ease-out forwards;
+  animation: word-in 300ms ease-out forwards;
 }
 
 @keyframes word-in {
