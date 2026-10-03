@@ -307,14 +307,18 @@ export function ChatStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the conversation, not the anchor
   }, [entries, working])
 
-  // The message just sent goes to the top, with room enough under it to stay there.
+  // The message just sent goes to the top: first the room under it to stay there, then the scroll
+  // (before the room is laid out the conversation is too short, and the scroll stops at its end).
+  useLayoutEffect(() => {
+    if (anchor !== null && log.current) setAnchorRoom(log.current.clientHeight)
+  }, [anchor])
   useLayoutEffect(() => {
     const element = log.current
     const sent = anchor !== null ? element?.querySelector<HTMLElement>(`[data-entry="${anchor}"]`) : null
-    if (!element || !sent) return
-    setAnchorRoom(element.clientHeight)
-    element.scrollTop = sent.offsetTop - parseFloat(getComputedStyle(element).paddingTop)
-  }, [anchor])
+    if (!element || !sent || anchorRoom === 0) return
+    const top = sent.getBoundingClientRect().top - element.getBoundingClientRect().top
+    element.scrollTop += top - parseFloat(getComputedStyle(element).paddingTop)
+  }, [anchor, anchorRoom])
 
   // The owner's own scroll lets the message go: the conversation follows its end again.
   function release() {
