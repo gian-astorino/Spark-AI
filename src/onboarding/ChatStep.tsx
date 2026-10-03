@@ -29,8 +29,8 @@ import {
   Attachment02Icon,
   Cancel01Icon,
   Image01Icon,
+  LibraryBigIcon,
   Logout03Icon,
-  SidebarRightIcon,
 } from '@hugeicons/core-free-icons'
 import {
   askAgent,
@@ -337,13 +337,13 @@ export function ChatStep({
               <Drawer>
                 <DrawerTrigger asChild>
                   <Button variant="outline" size="sm">
-                    <Icon icon={SidebarRightIcon} />
-                    Profilo
+                    <Icon icon={LibraryBigIcon} />
+                    Contesto
                   </Button>
                 </DrawerTrigger>
                 <DrawerContent>
                   <DrawerHeader>
-                    <DrawerTitle>Profilo dell'attività</DrawerTitle>
+                    <DrawerTitle>Contesto dell'attività</DrawerTitle>
                     <DrawerDescription>Quello che Spark sa finora.</DrawerDescription>
                   </DrawerHeader>
                   <div className="sheet-body">{panel(false)}</div>
@@ -504,7 +504,7 @@ export function ChatStep({
         </footer>
       </div>
 
-      <aside className="profile-panel" aria-label="Profilo dell'attività">
+      <aside className="profile-panel" aria-label="Contesto dell'attività">
         {panel(true)}
       </aside>
 

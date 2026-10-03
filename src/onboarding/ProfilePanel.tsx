@@ -84,7 +84,7 @@ export function ProfilePanel({
       <div className="profile-head">
         <Stack gap={3}>
           <div className="panel-heading">
-            {titled && <h2>Profilo dell'attività</h2>}
+            {titled && <h2>Contesto dell'attività</h2>}
             <p>
               {filled} di {SECTIONS.length} sezioni · tocca un dato per modificarlo
             </p>
