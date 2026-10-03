@@ -19,5 +19,9 @@ Leave the brand out: no logo, brand colours, fonts or brand style in the prompt,
 
 When the owner asks for something of theirs in the image (their logo, a photo of the business, an image they sent), pass it with include and say in the prompt what it is and where it goes, e.g. "Place the attached logo small in a corner, exactly as it is".
 
+The image model's safety filter refuses what it reads as sexualised, even for a beauty or wellness business: hands touching a body, close-ups of bare legs, back or chest, a person lying undressed. For body treatments show the setting, the equipment, a person dressed or wrapped, a face, or the feeling of the result instead.
+
+If an image failed (read_context "ad" shows why), change the scene, not just the words, and try again.
+
 The image model writes all the text on the image itself: nothing is laid over it later.`,
 } satisfies Skill
