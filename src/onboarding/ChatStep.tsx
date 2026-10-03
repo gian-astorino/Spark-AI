@@ -377,8 +377,11 @@ export function ChatStep({
                           <Markdown>{entry.text}</Markdown>
                         </BubbleContent>
                       </Bubble>
-                      {entry.ads?.map((id) =>
-                        ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null,
+                      {entry.ads && entry.ads.some((id) => ads[id]) && (
+                        // One or more ads on one row, scrolled sideways.
+                        <div className="ad-carousel">
+                          {entry.ads.map((id) => (ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null))}
+                        </div>
                       )}
                     </Stack>
                   </MessageContent>

@@ -640,6 +640,20 @@ h6 {
 
 /* ---------- An ad: as it would look in a feed ---------- */
 
+.ad-carousel {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.5rem;
+}
+
+.ad-carousel > .ad-card {
+  flex: none;
+  width: min(20rem, 85%);
+  scroll-snap-align: start;
+}
+
 .ad-card {
   max-width: 20rem;
   overflow: hidden;
