@@ -396,7 +396,7 @@ export function ChatStep({
                     <BubbleContent>
                       <Inline gap={2} align="center">
                         <Spinner aria-label="Spark sta lavorando" />
-                        {activity && <span className="agent-activity">{activity}…</span>}
+                        <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
                       </Inline>
                     </BubbleContent>
                   </Bubble>

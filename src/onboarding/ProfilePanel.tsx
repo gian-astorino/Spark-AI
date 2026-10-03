@@ -116,7 +116,12 @@ export function ProfilePanel({
                   ))}
               </Inline>
               <Inline gap={1} align="center">
-                {state === 'loading' && <Spinner />}
+                {state === 'loading' && (
+                  <Inline gap={1} align="center">
+                    <Spinner />
+                    <ItemDescription>Sto cercando…</ItemDescription>
+                  </Inline>
+                )}
                 {/* No pencils: every value opens its editor when tapped. The catalog keeps its "+". */}
                 {section === 'catalog' && (
                   <Button
