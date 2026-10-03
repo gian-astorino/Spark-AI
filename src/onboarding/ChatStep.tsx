@@ -49,6 +49,7 @@ import { AdCard } from './AdCard.tsx'
 // Inline, so its strokes take the text colour (currentColor) and its animations run.
 import thinkingLoop from './thinking.svg?raw'
 import idleLoop from './idle.svg?raw'
+import speakingLoop from './speaking.svg?raw'
 import { Markdown } from './Markdown.tsx'
 import { TypedMarkdown } from './TypedMarkdown.tsx'
 import { Icon } from './Icon.tsx'
@@ -127,6 +128,8 @@ export function ChatStep({
   // A turn of the agent's in flight: the typing indicator shows what it is doing.
   const [working, setWorking] = useState(false)
   const [activity, setActivity] = useState<string>()
+  /** Replies being written out word by word: Spark is speaking while there are any. */
+  const [speaking, setSpeaking] = useState<number[]>([])
   const end = useRef<HTMLDivElement>(null)
   const log = useRef<HTMLElement>(null)
   /** Whether the owner is at the bottom of the conversation: it then stays there as things load. */
@@ -235,7 +238,10 @@ export function ChatStep({
           const shown = fresh
             .filter((entry) => entry.role === 'assistant')
             .map((entry): Entry => ({ ...fromServer(entry), typed: true }) as Entry)
-          if (shown.length) setEntries((list) => [...list, ...shown])
+          if (shown.length) {
+            setEntries((list) => [...list, ...shown])
+            setSpeaking((ids) => [...ids, ...shown.map((entry) => entry.id)])
+          }
           await Promise.all([refreshProfile(), refreshAds(fresh.flatMap((entry) => entry.ads ?? []))])
         }
         setActivity(state.activity)
@@ -402,10 +408,16 @@ export function ChatStep({
                   <Message key={entry.id}>
                     <MessageContent>
                       <Stack gap={3}>
-                        {!thinking && entry.id === lastId && <SparkAvatar svg={idleLoop} inline />}
+                        {!thinking && entry.id === lastId && <SparkAvatar svg={speaking.length ? speakingLoop : idleLoop} inline />}
                         <Bubble variant="ghost">
                           <BubbleContent>
-                            {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
+                            {entry.typed ? (
+                              <TypedMarkdown onDone={() => setSpeaking((ids) => ids.filter((id) => id !== entry.id))}>
+                                {entry.text}
+                              </TypedMarkdown>
+                            ) : (
+                              <Markdown>{entry.text}</Markdown>
+                            )}
                           </BubbleContent>
                         </Bubble>
                         {entry.ads && entry.ads.some((id) => ads[id]) && (
@@ -435,7 +447,11 @@ export function ChatStep({
             <div ref={end} />
           </main>
           {/* Spark beside the conversation, at its bottom: the messages scroll, it stays. Thinking while it works, idle otherwise. */}
-          {thinking ? <SparkAvatar svg={thinkingLoop} label="Spark sta lavorando" /> : <SparkAvatar svg={idleLoop} />}
+          {thinking ? (
+            <SparkAvatar svg={thinkingLoop} label="Spark sta lavorando" />
+          ) : (
+            <SparkAvatar svg={speaking.length ? speakingLoop : idleLoop} />
+          )}
         </div>
 
         <footer
