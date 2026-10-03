@@ -700,10 +700,13 @@ img.ad-visual {
   height: auto;
 }
 
+/* No image yet: the client's brand colour (--brand, set on the element) at 15%,
+   the animation in the colour itself. */
 .ad-visual-empty {
   display: grid;
   place-items: center;
-  color: white;
+  background: color-mix(in srgb, var(--brand, var(--primary)) 15%, var(--background));
+  color: var(--brand, var(--primary));
 }
 
 .ad-foot {
@@ -745,6 +748,7 @@ img.ad-visual {
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
   background: rgb(0 0 0 / 0.35);
+  color: white;
   font-size: 0.8125rem;
 }
 

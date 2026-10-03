@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Avatar, AvatarFallback, Button } from '@skyground-media/pipelean-design-system'
 // Inline, so its strokes take the container's colour (currentColor) and its animations run.
 import imagining from './imagining.svg?raw'
@@ -49,7 +50,7 @@ export function AdCard({ ad, profile }: { ad: Ad; profile: Profile }) {
       ) : (
         <div
           className="ad-visual ad-visual-empty"
-          style={{ background: brand ? `linear-gradient(135deg, ${brand}, color-mix(in oklch, ${brand} 55%, black))` : undefined }}
+          style={brand ? ({ '--brand': brand } as CSSProperties) : undefined}
         >
           {making ? (
             <span className="imagining" role="img" aria-label="Sto creando l'immagine" dangerouslySetInnerHTML={{ __html: imagining }} />
