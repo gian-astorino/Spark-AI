@@ -662,17 +662,6 @@ h6 {
   background: var(--background);
 }
 
-/* On a phone the previews are smaller: the next one peeks in. */
-@media (max-width: 639px) {
-  .ad-carousel > .ad-card {
-    width: min(15rem, 72%);
-  }
-
-  .ad-card {
-    max-width: 15rem;
-  }
-}
-
 .ad-head {
   display: flex;
   align-items: center;
@@ -796,6 +785,33 @@ img.ad-visual {
   background: rgb(0 0 0 / 0.35);
   color: white;
   font-size: 0.8125rem;
+}
+
+/* On a phone the previews are smaller: the next one peeks in. */
+@media (max-width: 639px) {
+  .ad-carousel > .ad-card {
+    width: min(15rem, 72%);
+  }
+
+  .ad-card {
+    max-width: 15rem;
+  }
+
+  .ad-head strong,
+  .ad-foot strong {
+    font-size: 0.8125rem;
+  }
+
+  .ad-head small,
+  .ad-text,
+  .ad-cta {
+    font-size: 0.75rem;
+  }
+
+  /* Under the image, the headline alone. */
+  .ad-foot small {
+    display: none;
+  }
 }
 
 /* What Spark is doing, next to its typing indicator. */
