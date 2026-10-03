@@ -54,6 +54,22 @@ export async function askAgent(businessId: string, turn: AgentTurn, after: numbe
   }
 }
 
+/**
+ * Whether the agent has a turn left unfinished (it stopped mid-way, or failed
+ * and will try again): only then does opening a workspace need to call it.
+ */
+export async function hasUnfinishedTurn(businessId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('conversations')
+    .select('status, turn')
+    .eq('business_id', businessId)
+    .eq('engine', 'claude')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return !!data && (data.status === 'running' || !!(data.turn as { error?: string } | null)?.error)
+}
+
 /** Uploads a file the owner attached; returns its id, the storage path the agent's tools take. */
 export async function uploadAttachment(businessId: string, file: File): Promise<string> {
   const extension = file.name.split('.').pop()?.toLowerCase() || file.type.split('/')[1] || 'bin'

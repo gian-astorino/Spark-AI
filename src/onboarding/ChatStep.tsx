@@ -37,6 +37,7 @@ import {
   checkAdImages,
   checkLogoJob,
   createBusiness,
+  hasUnfinishedTurn,
   loadAds,
   loadHistory,
   loadProfile,
@@ -143,7 +144,7 @@ export function ChatStep({
   async function resume() {
     try {
       const id = await businessId()
-      const [history, all] = await Promise.all([loadHistory(id), loadAds(id)])
+      const [history, all, unfinished] = await Promise.all([loadHistory(id), loadAds(id), hasUnfinishedTurn(id)])
       seen.current = history[history.length - 1]?.id ?? 0
       setAds(Object.fromEntries(all.map((ad) => [ad.id, ad])))
       const restored = history.map(fromServer)
@@ -152,7 +153,7 @@ export function ChatStep({
       const unseen = all.find((ad) => !shown.has(ad.id))
       if (unseen) restored.push(say('La tua ultima inserzione:', [unseen.id]))
       setEntries(restored.length ? restored : [say('Ciao di nuovo! Da dove riprendiamo?')])
-      void follow({ resume: true })
+      if (unfinished) void follow({ resume: true })
     } catch (error) {
       console.error(error)
       setEntries([say(AGENT_DOWN)])
