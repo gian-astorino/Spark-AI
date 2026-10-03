@@ -878,6 +878,7 @@ img.ad-visual {
   .spark-avatar.spark-avatar-inline {
     display: block;
     position: static;
+    flex: none;
     margin-bottom: 0.25rem;
   }
 }

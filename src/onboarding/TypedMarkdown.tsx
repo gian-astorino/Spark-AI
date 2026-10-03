@@ -31,6 +31,15 @@ export function TypedMarkdown({ children, onDone }: { children: string; /** Once
           if (!node.children) return
           node.children = node.children.flatMap((child): TreeNode[] => {
             if (child.type !== 'text' || !child.value) {
+              // A list item fades in with its first word, so its bullet never shows alone.
+              if (child.type === 'element' && child.tagName === 'li') {
+                const classes = (child.properties?.className as string[] | undefined) ?? []
+                child.properties = {
+                  ...child.properties,
+                  className: [...classes, 'typed-word'],
+                  style: `animation-delay: ${index * WORD_MS}ms`,
+                }
+              }
               walk(child)
               return [child]
             }

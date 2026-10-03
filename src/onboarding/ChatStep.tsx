@@ -451,12 +451,15 @@ export function ChatStep({
               {thinking && (
                 <Message>
                   <MessageContent>
-                    <SparkAvatar svg={thinkingLoop} inline />
-                    <Bubble variant="ghost">
-                      <BubbleContent>
-                        <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
-                      </BubbleContent>
-                    </Bubble>
+                    {/* On a phone the avatar shows here, at the side of what Spark is doing. */}
+                    <Inline gap={2} align="center">
+                      <SparkAvatar svg={thinkingLoop} inline />
+                      <Bubble variant="ghost">
+                        <BubbleContent>
+                          <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
+                        </BubbleContent>
+                      </Bubble>
+                    </Inline>
                   </MessageContent>
                 </Message>
               )}
