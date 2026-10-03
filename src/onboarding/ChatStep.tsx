@@ -387,7 +387,7 @@ export function ChatStep({
       <div className="chat">
         <header className="chat-header">
           {onBack ? (
-            <Button variant="ghost" size="icon-sm" aria-label="Workspace" title="Workspace" onClick={onBack}>
+            <Button variant="outline" size="icon-sm" aria-label="Workspace" title="Workspace" onClick={onBack}>
               <Icon icon={ArrowLeft02Icon} />
             </Button>
           ) : (
