@@ -49,6 +49,7 @@ import { AdCard } from './AdCard.tsx'
 // Inline, so its strokes take the text colour (currentColor) and its animations run.
 import thinkingLoop from './thinking.svg?raw'
 import { Markdown } from './Markdown.tsx'
+import { TypedMarkdown } from './TypedMarkdown.tsx'
 import { Icon } from './Icon.tsx'
 import { ProfileEditor, type Editing } from './ProfileEditor.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
@@ -68,7 +69,7 @@ interface PickedFile {
 const MAX_FILES = 6
 
 type Entry =
-  | { id: number; from: 'agent'; text: string; ads?: string[] }
+  | { id: number; from: 'agent'; text: string; ads?: string[]; /** Just arrived: written out word by word. */ typed?: boolean }
   | {
       id: number
       from: 'user'
@@ -230,7 +231,9 @@ export function ChatStep({
         const fresh = state.entries.filter((entry) => entry.id > seen.current)
         if (fresh.length) {
           seen.current = fresh[fresh.length - 1].id
-          const shown = fresh.filter((entry) => entry.role === 'assistant').map(fromServer)
+          const shown = fresh
+            .filter((entry) => entry.role === 'assistant')
+            .map((entry): Entry => ({ ...fromServer(entry), typed: true }) as Entry)
           if (shown.length) setEntries((list) => [...list, ...shown])
           await Promise.all([refreshProfile(), refreshAds(fresh.flatMap((entry) => entry.ads ?? []))])
         }
@@ -398,7 +401,7 @@ export function ChatStep({
                     <Stack gap={3}>
                       <Bubble variant="ghost">
                         <BubbleContent>
-                          <Markdown>{entry.text}</Markdown>
+                          {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
                         </BubbleContent>
                       </Bubble>
                       {entry.ads && entry.ads.some((id) => ads[id]) && (
