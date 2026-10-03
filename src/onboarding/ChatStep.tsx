@@ -333,6 +333,7 @@ export function ChatStep({
   }
 
   const thinking = working
+  const lastId = entries[entries.length - 1]?.id
   const busy = working
   const panel = (titled: boolean) => (
     <ProfilePanel profile={profile} sectionState={sectionState} onEdit={setEditing} titled={titled} />
@@ -401,6 +402,7 @@ export function ChatStep({
                   <Message key={entry.id}>
                     <MessageContent>
                       <Stack gap={3}>
+                        {!thinking && entry.id === lastId && <SparkAvatar svg={idleLoop} inline />}
                         <Bubble variant="ghost">
                           <BubbleContent>
                             {entry.typed ? <TypedMarkdown>{entry.text}</TypedMarkdown> : <Markdown>{entry.text}</Markdown>}
@@ -420,6 +422,7 @@ export function ChatStep({
               {thinking && (
                 <Message>
                   <MessageContent>
+                    <SparkAvatar svg={thinkingLoop} inline />
                     <Bubble variant="ghost">
                       <BubbleContent>
                         <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
@@ -610,11 +613,16 @@ function grow(textarea: HTMLTextAreaElement) {
   textarea.style.height = `${Math.min(textarea.scrollHeight, 5 * 24)}px`
 }
 
-/** Spark's avatar, an animation inline so it takes the text colour and moves. */
-function SparkAvatar({ svg, label }: { svg: string; label?: string }) {
-  return label ? (
-    <span className="spark-avatar" role="img" aria-label={label} dangerouslySetInnerHTML={{ __html: svg }} />
+/**
+ * Spark's avatar, an animation inline so it takes the text colour and moves.
+ * Beside the conversation on wider screens; `inline`, above its last reply,
+ * on a phone (each shows only where it belongs).
+ */
+function SparkAvatar({ svg, label, inline = false }: { svg: string; label?: string; inline?: boolean }) {
+  const className = inline ? 'spark-avatar spark-avatar-inline' : 'spark-avatar'
+  return label && !inline ? (
+    <span className={className} role="img" aria-label={label} dangerouslySetInnerHTML={{ __html: svg }} />
   ) : (
-    <span className="spark-avatar" aria-hidden dangerouslySetInnerHTML={{ __html: svg }} />
+    <span className={className} aria-hidden dangerouslySetInnerHTML={{ __html: svg }} />
   )
 }

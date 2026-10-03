@@ -858,6 +858,28 @@ img.ad-visual {
   }
 }
 
+/* On a phone Spark sits in the conversation, above its last reply, and the
+   messages take the whole width. */
+.spark-avatar-inline {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .chat-body > .chat-log {
+    padding-left: 1rem;
+  }
+
+  .spark-avatar {
+    display: none;
+  }
+
+  .spark-avatar.spark-avatar-inline {
+    display: block;
+    position: static;
+    margin-bottom: 0.25rem;
+  }
+}
+
 /* What Spark is doing, next to its typing indicator. */
 .agent-activity {
   font-size: 0.875rem;
