@@ -105,7 +105,11 @@ export function ProfilePanel({
                 <ItemTitle>{SECTION_TITLES[section]}</ItemTitle>
                 {state === 'ready' &&
                   (progress.filled === progress.total ? (
-                    <span className="badge-imported">Importato</span>
+                    <span className="badge-imported">
+                      {section === 'catalog' && profile.catalog?.length
+                        ? `${profile.catalog.length} ${profile.catalog.length === 1 ? 'importato' : 'importati'}`
+                        : 'Importato'}
+                    </span>
                   ) : (
                     <Badge variant="secondary">
                       {progress.filled} di {progress.total}

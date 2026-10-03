@@ -66,6 +66,7 @@ export async function readPlatform(url: string): Promise<string | null> {
     const response = await fetch(url, { headers: { 'User-Agent': BROWSER, 'Accept-Language': 'it,en;q=0.8' } })
     if (!response.ok) return null
     const listing = reader(await response.text(), response.url || url)
+    if (listing && platform === 'Fresha') listing.services = await freshaBookingCatalog(response.url || url, listing.services)
     return listing && listing.services.length > 0 ? format(listing) : null
   } catch (failure) {
     console.error('Platform reader failed', url, failure)
@@ -84,18 +85,17 @@ function fresha(html: string, url: string): Listing | null {
   const location: Json = raw ? JSON.parse(raw)?.props?.pageProps?.data?.location : null
   if (!location?.services) return null
 
-  // A service shows up under "Featured" and under its real category: keep the latter.
+  // A service shows up under the featured category ("Featured", "In evidenza"…,
+  // always the first) and under its real one: the later category wins.
   const services = new Map<string, Service>()
   for (const category of location.services as Json[]) {
     for (const item of (category.items ?? []) as Json[]) {
-      const key = String(item.serviceId ?? item.id ?? item.name)
-      const seen = services.get(key)
-      if (seen && category.name === 'Featured') continue
+      const key = String(item.serviceId ?? item.id ?? item.name).replace(/^s:/, '')
       const variants = ((item.variants ?? []) as Json[])
         .filter((variant) => variant.name && variant.name !== item.name)
         .map((variant) => ({ name: variant.name, price: variant.formattedRetailPrice, minutes: minutes(variant.caption) }))
       services.set(key, {
-        category: category.name === 'Featured' ? seen?.category : category.name,
+        category: category.name,
         name: String(item.name).trim(),
         price: item.formattedRetailPrice,
         minutes: item.minInSeconds ? Math.round(item.minInSeconds / 60) : minutes(item.caption),
@@ -107,6 +107,7 @@ function fresha(html: string, url: string): Listing | null {
 
   const address = location.address
   const days = (location.workingTime?.days ?? []) as Json[]
+
   return {
     platform: 'Fresha',
     url,
@@ -127,6 +128,66 @@ function fresha(html: string, url: string): Listing | null {
     services: [...services.values()],
   }
 }
+
+/**
+ * The complete catalog, as Fresha's booking flow loads it: the venue page
+ * holds at most 12 services per category. The page's services keep their
+ * details (variants, exact durations); the booking flow adds the ones the
+ * page left out. Its persisted query may change with Fresha's releases: then
+ * the page's services are all there is.
+ */
+async function freshaBookingCatalog(url: string, fromPage: Service[]): Promise<Service[]> {
+  // The page may answer from a localised address, /it/a/<slug>.
+  const slug = new URL(url).pathname.match(/\/a\/([^/]+)/)?.[1]
+  if (!slug) return fromPage
+  try {
+    const response = await fetch('https://www.fresha.com/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': BROWSER, 'Accept-Language': 'it,en;q=0.8' },
+      body: JSON.stringify({
+        operationName: 'BookingFlow_Initialize_Mutation',
+        variables: {
+          input: {
+            locationSlug: slug,
+            configToken: null,
+            referer: '',
+            options: { clientChannelType: 'MARKETPLACE', isGroupBooking: false, isRebook: false, shouldShowAllEmployees: false, isFromLinkBuilder: false },
+            shouldAutoContinue: false,
+            capabilities: ['SERVICE_ADDONS'],
+          },
+        },
+        extensions: { persistedQuery: { version: 1, sha256Hash: FRESHA_BOOKING_QUERY }, platform: 'web' },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    const categories: Json[] = (await response.json())?.data?.bookingFlowInitialize?.screenServices?.categories ?? []
+    if (categories.length === 0) return fromPage
+
+    const known = new Set(fromPage.map((service) => service.name.toLowerCase()))
+    const added = new Map<string, Service>()
+    for (const category of categories) {
+      for (const item of (category.items ?? []) as Json[]) {
+        const name = String(item.name ?? '').trim()
+        if (!name || known.has(name.toLowerCase())) continue
+        // Later categories win over the featured one, as on the page.
+        added.set(name.toLowerCase(), {
+          category: category.name,
+          name,
+          price: item.price?.formatted?.replace(/\u00a0/g, ' '),
+          minutes: minutes(item.caption),
+          description: short(item.description),
+        })
+      }
+    }
+    return [...fromPage, ...added.values()]
+  } catch (failure) {
+    console.error('Fresha booking catalog failed', url, failure)
+    return fromPage
+  }
+}
+
+/** Fresha's persisted query for the booking flow's first screen (its services). */
+const FRESHA_BOOKING_QUERY = 'a7cfc9d847618480af2172d9efe47999a709d5e9ea0d8c8ae65c7770501fe4fb'
 
 /** "10:00 AM - 7:00 PM" → "10:00-19:00" */
 function to24h(range: string) {
