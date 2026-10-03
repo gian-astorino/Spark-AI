@@ -7,7 +7,7 @@ export default {
   body: `# Creating an ad
 
 1. Save the ad with save_ad (ad_id null for a new one): the app shows its preview in the chat.
-2. Generate its image with generate_ad_image. The prompt for the image model, the reference images (logo, photos of the business, attachments) and the format are yours to decide. The image model writes any text on the image itself: nothing is laid over it later.
+2. Generate its image with generate_ad_image, following the creative-generation skill.
 
 The image takes a minute or two and appears on the preview by itself: do not wait for it.`,
 } satisfies Skill

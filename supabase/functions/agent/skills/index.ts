@@ -5,6 +5,7 @@ import brandIdentity from './brand-identity.ts'
 import businessResearch from './business-research.ts'
 import callTranscripts from './call-transcripts.ts'
 import campaignStrategy from './campaign-strategy.ts'
+import creativeGeneration from './creative-generation.ts'
 import onboarding from './onboarding.ts'
 import strategyAdvice from './strategy-advice.ts'
 
@@ -30,6 +31,7 @@ const SHIPPED: Skill[] = [
   callTranscripts,
   campaignStrategy,
   adCreation,
+  creativeGeneration,
   adEditing,
   strategyAdvice,
 ]
