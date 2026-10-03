@@ -47,6 +47,8 @@ export async function startImageJob(job: ImageJob): Promise<string> {
         quality: 'high',
         output_format: 'png',
         background: job.background ?? 'auto',
+        // The least strict filter OpenAI allows: beauty and wellness ads show bodies and skin.
+        moderation: 'low',
         ...(job.inputFidelity ? { input_fidelity: job.inputFidelity } : {}),
       },
     ],
@@ -68,7 +70,13 @@ export async function checkImageJob(id: string): Promise<ImageJobState> {
   }
   const call = response.output.find((item) => item.type === 'image_generation_call')
   const b64 = call && 'result' in call ? call.result : null
-  if (!b64) return { status: 'failed', error: 'The image model returned no image' }
+  if (!b64) {
+    // Why: no call at all (the text model answered instead), or a call that ended
+    // without a result (often the image model's safety system); what it said, if anything.
+    const said = response.output_text?.trim()
+    const reason = call ? `the image call ended ${call.status} without an image` : 'the image tool was never called'
+    return { status: 'failed', error: `No image: ${reason}.${said ? ` It said: ${said.slice(0, 600)}` : ''}` }
+  }
   return { status: 'done', png: Uint8Array.from(atob(b64), (char) => char.charCodeAt(0)) }
 }
 
