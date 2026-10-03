@@ -729,14 +729,6 @@ img.ad-visual {
   color: var(--muted-foreground);
 }
 
-.ad-facts .row {
-  align-items: flex-start;
-}
-
-.ad-facts .row dt {
-  max-width: 60%;
-}
-
 .ad-visual-status {
   align-self: center;
   padding: 0.25rem 0.75rem;

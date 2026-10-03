@@ -382,7 +382,7 @@ export function ChatStep({
                         </BubbleContent>
                       </Bubble>
                       {entry.ads?.map((id) =>
-                        ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} onAsk={send} busy={busy} /> : null,
+                        ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} /> : null,
                       )}
                     </Stack>
                   </MessageContent>

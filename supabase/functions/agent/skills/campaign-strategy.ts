@@ -10,5 +10,5 @@ Find the best strategy for a campaign that acquires new customers for this busin
 
 Read whatever context you need first (read_context: profile, calls, notes, ads already made). Ads can only be static images: no video.
 
-Then save it as an ad (ad-creation skill) and present it to the owner.`,
+Answer the owner in the chat with your strategy. Do not save an ad or generate images: that happens only when the owner asks you to create the ad (ad-creation skill).`,
 } satisfies Skill
