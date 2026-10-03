@@ -49,6 +49,18 @@ h6 {
   text-wrap: pretty;
 }
 
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Folded up: the heading alone, without the divider under it. */
+.profile-head[data-folded] {
+  border-bottom: 0;
+}
+
 .panel-heading h2 {
   margin: 0;
   font-size: 1.125rem;
@@ -242,22 +254,8 @@ h6 {
   .profile-toggle {
     display: none;
   }
-
-  /* Folded away: the chat takes the whole width. */
-  .workspace[data-panel='closed'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .workspace[data-panel='closed'] .profile-panel {
-    display: none;
-  }
 }
 
-/* The fold button is a desktop thing: on a phone the context comes up from the bottom. */
-@media (max-width: 1023px) {
-  .panel-toggle {
-    display: none;
-  }
-}
 
 .rows {
   display: grid;

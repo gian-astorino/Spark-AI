@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Avatar,
   AvatarFallback,
@@ -16,6 +17,8 @@ import {
 } from '@skyground-media/pipelean-design-system'
 import {
   AiSpeechIcon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
   AiTranscribeAudioIcon,
   BookOpen01Icon,
   Calendar05Icon,
@@ -27,6 +30,8 @@ import {
 } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from './Icon.tsx'
+
+const FOLD_KEY = 'spark.contextPanel'
 import type { Editing } from './ProfileEditor.tsx'
 import { SECTIONS, SECTION_TITLES, sectionProgress, type Profile, type Section } from './profile.ts'
 
@@ -79,19 +84,57 @@ export function ProfilePanel({
     return progress.filled === progress.total
   }).length
 
+  // The titled panel (the desktop one) folds up to its heading; the choice is remembered on this device.
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(FOLD_KEY) !== 'closed'
+    } catch {
+      return true
+    }
+  })
+  const foldable = titled
+  const expanded = !foldable || open
+  function toggle() {
+    setOpen((current) => {
+      try {
+        localStorage.setItem(FOLD_KEY, current ? 'closed' : 'open')
+      } catch {
+        // Not remembered: it still folds for now.
+      }
+      return !current
+    })
+  }
+
   return (
     <div className="profile">
-      <div className="profile-head">
+      <div className="profile-head" data-folded={!expanded || undefined}>
         <Stack gap={3}>
           <div className="panel-heading">
-            {titled && <h2>Contesto dell'attività</h2>}
-            <p>
-              {filled} di {SECTIONS.length} sezioni · tocca un dato per modificarlo
-            </p>
+            <div>
+              {titled && <h2>Contesto dell'attività</h2>}
+              <p>
+                {filled} di {SECTIONS.length} sezioni · tocca un dato per modificarlo
+              </p>
+            </div>
+            {foldable && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={open ? 'Riduci il contesto' : 'Espandi il contesto'}
+                title={open ? 'Riduci il contesto' : 'Espandi il contesto'}
+                aria-expanded={open}
+                onClick={toggle}
+              >
+                <Icon icon={open ? ArrowUp01Icon : ArrowDown01Icon} />
+              </Button>
+            )}
           </div>
           <Progress value={(filled / SECTIONS.length) * 100} />
         </Stack>
       </div>
+
+      {expanded && (
+        <>
 
       {SECTIONS.map((section) => {
         const state = sectionState(section)
@@ -192,6 +235,8 @@ export function ProfilePanel({
           </ItemDescription>
         )}
       </section>
+        </>
+      )}
     </div>
   )
 }
