@@ -1,9 +1,13 @@
 {
   "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@^0.131.0",
+    "@anthropic-ai/sdk/": "npm:/@anthropic-ai/sdk@^0.131.0/",
+    "openai": "npm:openai@^7.27.0",
+    "openai/": "npm:/openai@^7.27.0/",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.117.2",
-    "openai": "npm:openai@^7.23.0",
-    "openai/": "npm:/openai@^7.23.0/",
     "upng-js": "npm:upng-js@^2.1.0",
-    "jpeg-js": "npm:jpeg-js@^0.4.4"
+    "jpeg-js": "npm:jpeg-js@^0.4.4",
+    "fflate": "npm:fflate@^0.8.3",
+    "unpdf": "npm:unpdf@^1.8.1"
   }
 }

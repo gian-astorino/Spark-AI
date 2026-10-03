@@ -1,12 +1,13 @@
-import type OpenAI from 'openai'
+import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PREVIEW_CRAWLER } from './firecrawl.ts'
 import { requestLogoRefresh } from './logo.ts'
 import { addressKey, key } from './matching.ts'
 
-// The hands of both models, the chat agent and the import research: every
-// tool writes one part of the profile, marked with the caller's source.
-// Strict schemas, so inputs always match what is declared.
+// The agent's hands on the business profile: every tool writes one part of
+// it, marked with where the fact came from (the owner, or research). Strict
+// schemas, so inputs always match what is declared. What to save and when is
+// up to the skills, never to these tools.
 
 const nullable = (type: string, description: string) => ({ type: [type, 'null'], description })
 
@@ -31,7 +32,7 @@ export interface ToolDef {
   input_schema: Record<string, unknown>
 }
 
-export const DEFS: ToolDef[] = [
+export const PROFILE_TOOLS: ToolDef[] = [
   {
     name: 'update_business',
     description: 'Set the business name, description or sector. Pass null for anything that should stay as it is.',
@@ -153,11 +154,6 @@ export const DEFS: ToolDef[] = [
     },
   },
   {
-    name: 'view_logo',
-    description: 'Look at the logo currently in the profile, e.g. to propose brand colours that match it.',
-    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
-  },
-  {
     name: 'set_brand_colors',
     description:
       'Replace the brand colours: Primary, Secondary and Accent. Normally they are read from the logo automatically: use this only when there is no logo, or the owner asks to change them, and after they agree.',
@@ -221,17 +217,6 @@ export const DEFS: ToolDef[] = [
     },
   },
   {
-    name: 'offer_choices',
-    description:
-      'Show up to four short answers the owner can tap instead of typing, under your next message. Use it for questions with a few likely answers.',
-    input_schema: {
-      type: 'object',
-      properties: { options: { type: 'array', items: { type: 'string' } } },
-      required: ['options'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'save_call_transcript',
     description:
       "Keep the transcript of a call with the client, pasted in this message or attached as a document (PDF, TXT, DOCX), as a document in the profile's Conversazioni. Only for a call transcript, once per transcript. The transcript itself is taken from the message or the file as it is: write only what goes around it. Use what the call says to update the profile with the other tools too.",
@@ -254,29 +239,7 @@ export const DEFS: ToolDef[] = [
       additionalProperties: false,
     },
   },
-  {
-    name: 'complete_onboarding',
-    description: 'Call once the profile has everything needed and the owner has confirmed it.',
-    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
-  },
 ]
-
-/** As OpenAI function tools, in strict mode: inputs always match the schema. */
-export const asFunctionTool = (tool: ToolDef): OpenAI.Responses.FunctionTool => ({
-  type: 'function',
-  name: tool.name,
-  description: tool.description,
-  parameters: tool.input_schema,
-  strict: true,
-})
-
-export const TOOLS: OpenAI.Responses.FunctionTool[] = DEFS.map((tool) => ({
-  type: 'function',
-  name: tool.name,
-  description: tool.description,
-  parameters: tool.input_schema,
-  strict: true,
-}))
 
 const LOGO_SAVED =
   'Logo saved. A square high-resolution version is being made in the background, and the brand colours will be taken from it.'
@@ -288,13 +251,13 @@ export interface ToolContext {
   businessId: string
   /** 'chat' for what the owner said, 'import' for what research found. */
   source: 'chat' | 'import'
-  /** Filled by offer_choices, read by the caller after the turn. */
-  choices: string[]
-  /** What the owner wrote this turn: save_call_transcript keeps it as it is. */
+  /** What the owner wrote in their latest message: save_call_transcript keeps it as it is. */
   message?: string
-  /** The text of a document attached this turn (chat only). */
-  attachmentText?: (id: string) => Promise<string>
+  /** The text of a document the owner attached. */
+  attachmentText: (id: string) => Promise<string>
 }
+
+export type ToolOutput = string | Exclude<Anthropic.Beta.BetaToolResultBlockParam['content'], string | undefined>
 
 type Input = Record<string, unknown>
 
@@ -303,7 +266,7 @@ export async function runTool(
   name: string,
   input: Input,
   ctx: ToolContext,
-): Promise<string | OpenAI.Responses.ResponseFunctionCallOutputItemList> {
+): Promise<ToolOutput> {
   const { db, businessId } = ctx
   switch (name) {
     case 'update_business': {
@@ -449,17 +412,6 @@ export async function runTool(
       return LOGO_SAVED
     }
 
-    case 'view_logo': {
-      const { data: brand } = await db.from('brand_profiles').select('logo_path').eq('business_id', businessId).maybeSingle()
-      if (!brand?.logo_path) return 'There is no logo in the profile.'
-      const { data } = await db.storage.from('logos').createSignedUrl(brand.logo_path, 10 * 60)
-      if (!data) return 'The logo could not be opened.'
-      return [
-        { type: 'input_text', text: 'The current logo:' },
-        { type: 'input_image', image_url: data.signedUrl, detail: 'high' },
-      ]
-    }
-
     case 'set_brand_colors': {
       const colors = (input.colors as { name: string; hex: string }[]).filter((color) => /^#[0-9a-f]{6}$/i.test(color.hex))
       if (colors.length === 0) return 'Not saved: no valid #RRGGBB colour.'
@@ -538,16 +490,10 @@ export async function runTool(
       return `${paths.length} photo(s) saved.`
     }
 
-    case 'offer_choices':
-      ctx.choices = (input.options as string[]).slice(0, 4)
-      return 'The options will be shown under your next message.'
-
     case 'save_call_transcript': {
       const transcript =
         typeof input.attachment === 'string' && input.attachment
-          ? await (ctx.attachmentText
-              ? ctx.attachmentText(ownAttachment(input.attachment, businessId))
-              : Promise.reject(new Error('Attachments can only be read in the chat')))
+          ? await ctx.attachmentText(ownAttachment(input.attachment, businessId))
           : ctx.message?.trim()
       if (!transcript) throw new Error('No transcript: paste it in the chat or attach it as a PDF, TXT or DOCX file.')
       const record = {
@@ -561,23 +507,19 @@ export async function runTool(
       return 'Transcript saved in Conversazioni.'
     }
 
-    case 'complete_onboarding':
-      await check(db.from('businesses').update({ onboarding_status: 'completed' }).eq('id', businessId))
-      return 'Onboarding marked as complete.'
-
     default:
-      return `Unknown tool ${name}.`
+      throw new Error(`Unknown tool ${name}`)
   }
 }
 
 /** An attachment id is its storage path; it must sit in this business's folder. */
-function ownAttachment(id: string, businessId: string) {
+export function ownAttachment(id: string, businessId: string) {
   if (!id.startsWith(`${businessId}/`) || id.includes('..')) throw new Error(`Unknown attachment: ${id}`)
   return id
 }
 
 /** Supabase returns errors instead of throwing; the loop wants them thrown. */
-async function check<T extends { error: { message: string } | null }>(query: PromiseLike<T>): Promise<T> {
+export async function check<T extends { error: { message: string } | null }>(query: PromiseLike<T>): Promise<T> {
   const result = await query
   if (result.error) throw new Error(result.error.message)
   return result

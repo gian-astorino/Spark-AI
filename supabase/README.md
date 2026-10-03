@@ -1,16 +1,17 @@
 # Backend
 
 Supabase: Postgres, Auth, Storage (logos), Realtime (the profile panel updates
-live) and Edge Functions (import, agent). The frontend stays static on GitHub
+live) and Edge Functions (agent, ads, logo). The frontend stays static on GitHub
 Pages and talks to Supabase with the anon key; RLS limits every owner to their
 own business.
 
 ```
 browser ──► supabase-js (anon key, RLS) ──► Postgres ◄── Realtime ──► panel
    │
-   └──► Edge Function `import`  ──► OpenAI research: web search + Firecrawl pages ──► profile tables
-   └──► Edge Function `agent`   ──► OpenAI (gpt-5.5) with tools (update_business, set_opening_hours,
-                                    add_catalog_item, set_team, set_calendar, …) ──► profile tables
+   └──► Edge Function `agent` ──► Claude (claude-opus-5-5): skills + a kernel of generic tools
+   │                               (profile, web research, ads, notes) ──► Postgres, Storage
+   │                                         └──► OpenAI, images only (ad images, logo, brand board)
+   └──► Edge Functions `ads`, `logo` ──► move the image jobs on
 ```
 
 ## Schema
@@ -26,60 +27,57 @@ confirms it, and what the owner says wins.
 | Branding | `brand_profiles` (logo, tone of voice), `brand_colors` |
 | Catalog | `catalog_items` (price in cents, duration in minutes) |
 | Calendar | `team_members`, `calendar_setups` |
-| Import | `import_jobs`, `scraped_pages` (kept to re-run extraction) |
+| Import (OpenAI era, no longer written) | `import_jobs`, `scraped_pages` |
 | Chat | `conversations`, `messages` (append-only, model content blocks verbatim) |
-
-## Import (`functions/import`): research on OpenAI
-
-The import is a research run, not a fixed crawl. `gpt-5.5` starts from the
-link, reads it, **searches the web** for other sources about the same business
-(its site, Treatwell/Fresha/Booksy pages, Google Maps listing, socials), reads
-the promising ones through Firecrawl and saves what it finds with the same
-profile tools the chat agent uses (`source = 'import'`). It checks a source is
-the same business (name and city) before using it, and never guesses.
-
-- `{ business_id }` researches from the business's link. For its own site,
-  branding (logo, brand colours, fonts) is read from the home page first;
-  for a booking platform or directory link it is skipped (it would be the
-  platform's).
-- `{ business_id, url }` researches from a link pasted in the chat, to fill
-  gaps in the existing profile.
-- `{ job_id }` advances the run by one step. It runs as OpenAI **background**
-  responses: each check retrieves the current one and, when it asks for tools,
-  runs them (pages in parallel) and starts the next. The client calls this
-  every few seconds; `import_jobs.activity` says what it is doing for the
-  marker, `summary` holds its closing notes.
-
-Budget: at most 12 pages read (1 Firecrawl credit each) and 16 model turns
-per run, plus OpenAI tokens and web searches.
+| Ads | `ads`, `ad_images` (`ad_proposals`: the OpenAI-era proposals, copied into `ads`) |
+| Agent | `agent_notes` (strategies, memories, reports), `agent_skills` (skills edited live) |
 
 ## Agent (`functions/agent`)
 
-`POST /functions/v1/agent { business_id, message }` for what the owner types,
-`{ business_id, event }` for what the app reports (an import finished, no
-website). One turn: OpenAI `gpt-5.5` on the Responses API reads the profile
-as it stands (passed as data, never as instructions: it contains scraped
-text), saves what the owner says through strict function tools
-(`update_business`, `set_location`, `save_catalog_items`, `set_team`,
-`set_calendar`, `set_tone_of_voice`, …) and answers `{ reply, choices }`.
+Spark is one Claude agent. It has no flows written in code: everything it
+knows how to do is a **skill** (`functions/agent/skills/*.ts`: onboarding,
+business research, brand identity, call transcripts, campaign strategy, ad
+creation, ad editing, strategy advice). The system prompt lists each skill's
+name and description; the agent loads the whole skill with `load_skill` when
+a request calls for it. A row in `agent_skills` adds a skill, or replaces the
+shipped one with the same name, without a deploy (`enabled = false` turns it
+off). A new capability (reports, for one) is a new skill, plus a kernel tool
+only if it needs data the kernel cannot reach yet.
 
-The owner can attach images and PDFs (price lists, a sign with the hours,
-their logo, photos). They are uploaded to the private `uploads` bucket, one
-folder per business, and passed to the model through short-lived signed URLs.
-The model extracts what they state with the usual tools, and can keep an
-image with `set_logo` (copied into `logos/`) or `add_photos` (`business_media`).
+The kernel (`functions/agent/tools.ts`) is generic: `read_context` (profile,
+ads, calls, notes, photos), `view_image`, the profile tools
+(`_shared/profile-tools.ts`, each with the origin of what it saves), web
+research (Claude's `web_search` and `web_fetch`, plus `read_page`,
+`import_branding_from_site`, `search_images` through Firecrawl, at most 15
+reads per turn), `save_ad`, `generate_ad_image`, `save_note`,
+`offer_choices`, `set_onboarding_status`, `refresh_brand_board`.
 
-The conversation continues from `conversations.last_response_id`; `messages`
-keeps our own transcript. Links pasted in the chat are read by the app
-(an additive import), then reported to the agent as an event.
+`POST /functions/v1/agent { business_id, message, attachments?, after }` for
+what the owner types, `{ business_id, event, after }` for what the app reports
+(a new workspace and its link), `{ business_id, resume: true, after }` to move
+a turn on. A turn is a loop of steps (a model call, then its tools); each
+request runs steps for about a minute and answers `{ status, activity,
+entries }`; while `status` is `running` the app calls again with `resume`.
+One worker per conversation (`conversations.processing_started_at`).
+`messages.content` holds Claude's content blocks verbatim and is replayed as
+it is (append-only); server-side compaction keeps long conversations within
+the context window. Attachments and images reach Claude through the Files API,
+so the replayed history never holds an expired link. Conversations from the
+OpenAI era (`engine = 'openai'`) are shown, not continued.
+
+Ads (`ads`, `ad_images`): the agent decides their content; every image is a
+new row (an edit keeps the old ones), generated as an OpenAI background job
+and moved on by the agent's steps and by `functions/ads`, which the app calls
+while a card waits for its image.
 
 ## Setup
 
 ```bash
 supabase link --project-ref <ref>
 supabase db push
-supabase secrets set FIRECRAWL_API_KEY=... OPENAI_API_KEY=...
-supabase functions deploy import agent
+supabase secrets set ANTHROPIC_API_KEY=... OPENAI_API_KEY=... FIRECRAWL_API_KEY=...
+supabase functions deploy agent ads logo
+supabase functions delete import proposal creative
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are

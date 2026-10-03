@@ -463,26 +463,6 @@ h6 {
   cursor: pointer;
 }
 
-.sources {
-  margin: 0;
-  padding-left: 1.25rem;
-  display: grid;
-  gap: 0.25rem;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
-.sources a {
-  color: var(--foreground);
-  text-decoration: underline;
-  word-break: break-all;
-}
-
-.source-kind {
-  font-weight: 500;
-  color: var(--foreground);
-}
-
 /* A section filled in: the design system's Badge has no success variant yet. */
 .badge-imported {
   display: inline-flex;
@@ -670,7 +650,7 @@ h6 {
   }
 }
 
-/* ---------- First-ad proposal: the ad as it would look in a feed ---------- */
+/* ---------- An ad: as it would look in a feed ---------- */
 
 .ad-card {
   max-width: 26rem;
@@ -726,6 +706,12 @@ h6 {
   background: var(--primary);
 }
 
+/* A made image keeps its own format (square, story, landscape). */
+img.ad-visual {
+  aspect-ratio: auto;
+  height: auto;
+}
+
 .ad-visual-empty {
   display: grid;
   place-items: center;
@@ -769,6 +755,12 @@ h6 {
   border-radius: 999px;
   background: rgb(0 0 0 / 0.35);
   font-size: 0.8125rem;
+}
+
+/* What Spark is doing, next to its typing indicator. */
+.agent-activity {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
 }
 
 /* The logo's place while its recreation is under way. */

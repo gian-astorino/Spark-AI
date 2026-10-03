@@ -4,25 +4,6 @@ import { currentUser, supabase } from '../lib/supabase.ts'
 import { contentType } from './attachments.ts'
 import type { HoursRow, Profile } from './profile.ts'
 
-export type ImportStatus = 'running' | 'done' | 'failed'
-
-/** One source a research touched: a page read, a web or image search, a branding read. */
-export interface ImportSource {
-  kind: 'page' | 'search' | 'images' | 'branding'
-  value: string
-}
-
-export interface ImportProgress {
-  status: ImportStatus
-  pagesRead: number
-  pagesTotal: number
-  /** What the research is doing right now, e.g. 'Searching "…"'. */
-  activity?: string
-  /** Once done: the sources used and what is still missing. */
-  summary?: string
-  sources: ImportSource[]
-}
-
 export async function createBusiness(websiteUrl?: string): Promise<string> {
   const user = await currentUser()
   const { data, error } = await supabase
@@ -34,43 +15,38 @@ export async function createBusiness(websiteUrl?: string): Promise<string> {
   return data.id
 }
 
-/** The business's own site without `url`; an extra source to add from with it. */
-export async function startImport(businessId: string, url?: string): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('import', {
-    body: url ? { business_id: businessId, url } : { business_id: businessId },
-  })
-  if (error) throw error
-  return data.job_id
+/** One message of the conversation, as it is shown. */
+export interface AgentEntry {
+  /** The message's id: later calls ask for what comes after it. */
+  id: number
+  role: 'user' | 'assistant'
+  text: string
+  /** The owner's files: their storage paths. */
+  attachments?: string[]
+  /** Answers the owner can tap, under the reply that closes a turn. */
+  choices?: string[]
+  /** Ads saved or given an image in that turn, shown as cards. */
+  ads?: string[]
 }
 
-/** Also what moves the import forward: the server has nothing else waking it up. */
-export async function checkImport(jobId: string): Promise<ImportProgress> {
-  const { data, error } = await supabase.functions.invoke('import', { body: { job_id: jobId } })
-  if (error) throw error
-  return {
-    status: data.status === 'done' ? 'done' : data.status === 'failed' ? 'failed' : 'running',
-    pagesRead: data.pages_read ?? 0,
-    pagesTotal: data.pages_total ?? 0,
-    activity: data.activity ?? undefined,
-    summary: data.summary ?? undefined,
-    sources: data.sources ?? [],
-  }
+export interface AgentState {
+  status: 'running' | 'idle'
+  /** What Spark is doing right now, e.g. "Leggo example.com". */
+  activity?: string
+  entries: AgentEntry[]
 }
 
-export interface AgentReply {
-  reply: string
-  choices: string[]
-  /** The tools the agent ran this turn. */
-  actions: string[]
-}
+export type AgentTurn = { message: string; attachments?: string[] } | { event: string } | { resume: true }
 
-export type AgentTurn = { message: string; attachments?: string[] } | { event: string }
-
-/** One conversation turn: what the owner typed (and attached), or something the app reports. */
-export async function askAgent(businessId: string, turn: AgentTurn): Promise<AgentReply> {
-  const { data, error } = await supabase.functions.invoke('agent', { body: { business_id: businessId, ...turn } })
+/**
+ * One request to the agent: a new turn (what the owner typed, or something
+ * the app reports) or, with `resume`, the next steps of the turn under way.
+ * Returns the messages after `after` and whether the turn goes on.
+ */
+export async function askAgent(businessId: string, turn: AgentTurn, after: number): Promise<AgentState> {
+  const { data, error } = await supabase.functions.invoke('agent', { body: { business_id: businessId, after, ...turn } })
   if (error) throw error
-  return { reply: data.reply ?? '', choices: data.choices ?? [], actions: data.actions ?? [] }
+  return { status: data.status === 'running' ? 'running' : 'idle', activity: data.activity ?? undefined, entries: data.entries ?? [] }
 }
 
 /** Uploads a file the owner attached; returns its id, the storage path the agent's tools take. */
@@ -91,62 +67,57 @@ export const CALENDARS: Record<string, string> = {
   paper: 'Agenda cartacea',
 }
 
-/** The first campaign, as the strategist decided it over the whole context (see proposal/index.ts). */
-export interface AdProposal {
-  version: 3
-  campaign: {
-    product: string
-    catalog_item: string | null
-    offer: string
-    offer_price_eur: number | null
-    target: string
-    problem: string
-    angle: string
+/** An ad as the agent saved it (see the save_ad tool), with its images. */
+export interface Ad {
+  id: string
+  name: string
+  status: string
+  content: {
+    objective?: string | null
+    strategy?: { label: string; text: string }[]
+    copy?: { primary_text?: string; headline?: string; description?: string | null; cta?: string }
+    creative?: { format?: string; brief?: string; text_on_image?: string }
   }
-  /** The promoted catalog item, matched to the catalog, with its list price. */
-  item: { name: string; list_price_eur: number | null } | null
-  cpl: { estimate_eur: number; reasoning: string }
-  awareness: string
-  creative: { format: string; hero_visual: string; copy_on_image: string }
-  ad: { primary_text: string; headline: string; cta: string }
+  /** Oldest first; an edit is a new image. */
+  images: { id: string; status: 'running' | 'done' | 'failed'; url?: string; size?: string }[]
 }
 
-/**
- * The first campaign, reasoned out over the whole context as a background
- * job: started, then checked every few seconds (a few minutes at most).
- */
-export async function requestProposal(businessId: string): Promise<{ id: string; proposal: AdProposal }> {
-  const started = await supabase.functions.invoke('proposal', { body: { business_id: businessId } })
-  if (started.error) throw started.error
-  const id: string = started.data.id
-  for (let attempt = 0; attempt < 100; attempt++) {
-    await wait(4000)
-    const { data, error } = await supabase.functions.invoke('proposal', { body: { proposal_id: id, check: true } })
-    if (error) throw error
-    if (data.status === 'done') return { id, proposal: data.proposal }
-    if (data.status === 'failed') throw new Error(data.error ?? 'The campaign could not be prepared')
-  }
-  throw new Error('The campaign took too long')
+/** The business's ads, newest first, or only the ones asked for. */
+export async function loadAds(businessId: string, ids?: string[]): Promise<Ad[]> {
+  let query = supabase
+    .from('ads')
+    .select('id, name, status, content, updated_at, ad_images(id, status, path, size, created_at)')
+    .eq('business_id', businessId)
+    .order('updated_at', { ascending: false })
+  if (ids) query = query.in('id', ids)
+  const { data, error } = await query
+  if (error) throw error
+  return await Promise.all(
+    (data ?? []).map(async (row) => {
+      const images = [...((row.ad_images ?? []) as { id: string; status: string; path: string | null; size: string | null; created_at: string }[])]
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      return {
+        id: row.id,
+        name: row.name,
+        status: row.status,
+        content: row.content ?? {},
+        images: await Promise.all(
+          images.map(async (image) => {
+            let url: string | undefined
+            if (image.path) url = (await supabase.storage.from('creatives').createSignedUrl(image.path, 60 * 60)).data?.signedUrl
+            return { id: image.id, status: image.status as Ad['images'][number]['status'], url, size: image.size ?? undefined }
+          }),
+        ),
+      }
+    }),
+  )
 }
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-/**
- * The proposal's image, generated from the branding as a background job:
- * started, then checked every few seconds until it is ready (a few minutes
- * at most). Resolves to its address, or throws if it failed.
- */
-export async function requestCreative(proposalId: string): Promise<string> {
-  const started = await supabase.functions.invoke('creative', { body: { proposal_id: proposalId } })
-  if (started.error) throw started.error
-  for (let attempt = 0; attempt < 90; attempt++) {
-    await wait(4000)
-    const { data, error } = await supabase.functions.invoke('creative', { body: { proposal_id: proposalId, check: true } })
-    if (error) throw error
-    if (data.status === 'done' && data.url) return data.url
-    if (data.status === 'failed') throw new Error(data.error ?? 'The image could not be generated')
-  }
-  throw new Error('The image took too long')
+/** Moves the ad images being made; returns how many still are. */
+export async function checkAdImages(businessId: string): Promise<number> {
+  const { data, error } = await supabase.functions.invoke('ads', { body: { business_id: businessId } })
+  if (error) throw error
+  return data.running ?? 0
 }
 
 /** Moves the logo recreation on and reports it: 'running', 'done', 'rejected', 'failed' or 'none'. */
@@ -349,54 +320,22 @@ export async function listWorkspaces(withOwners = false): Promise<Workspace[]> {
   }))
 }
 
-/** One message of a past conversation, as it was shown. */
-export type HistoryEntry =
-  | { from: 'user'; text: string; attachments: string[] }
-  | { from: 'agent'; text: string; choices: string[] }
-
-/** The workspace's conversation so far: what the owner wrote and Spark's replies (the app's own notes are left out). */
-export async function loadHistory(businessId: string): Promise<HistoryEntry[]> {
-  const { data: conversation } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('business_id', businessId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (!conversation) return []
+/**
+ * The workspace's conversation so far, across its conversations (the ones
+ * from before Spark moved to Claude are shown, not continued): what the
+ * owner wrote and Spark's replies. The app's own notes are left out.
+ */
+export async function loadHistory(businessId: string): Promise<AgentEntry[]> {
   const { data, error } = await supabase
     .from('messages')
-    .select('role, display')
-    .eq('conversation_id', conversation.id)
+    .select('id, role, display, conversations!inner(business_id)')
+    .eq('conversations.business_id', businessId)
     .not('display', 'is', null)
-    .order('created_at')
+    .order('id')
   if (error) throw error
-  return (data ?? []).flatMap((row): HistoryEntry[] => {
-    const display = row.display as { text?: string; attachments?: string[]; choices?: string[] }
-    if (row.role === 'user') return [{ from: 'user', text: display.text ?? '', attachments: display.attachments ?? [] }]
-    return display.text ? [{ from: 'agent', text: display.text, choices: display.choices ?? [] }] : []
+  return (data ?? []).flatMap((row): AgentEntry[] => {
+    const display = row.display as Omit<AgentEntry, 'id' | 'role'>
+    if (row.role === 'assistant' && !display.text) return []
+    return [{ id: row.id, role: row.role, text: display.text ?? '', attachments: display.attachments, choices: display.choices, ads: display.ads }]
   })
-}
-
-/** The latest first-ad proposal of a workspace, with its image if it was made. */
-export async function loadLatestProposal(
-  businessId: string,
-): Promise<{ id: string; proposal: AdProposal; creative: string | null } | null> {
-  const { data } = await supabase
-    .from('ad_proposals')
-    .select('id, content, creative_path')
-    .eq('business_id', businessId)
-    .eq('proposal_status', 'done')
-    // Only campaigns in the current format: older proposals are not shown.
-    .eq('content->>version', '3')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (!data) return null
-  let creative: string | null = null
-  if (data.creative_path) {
-    const { data: signed } = await supabase.storage.from('creatives').createSignedUrl(data.creative_path, 60 * 60)
-    creative = signed?.signedUrl ?? null
-  }
-  return { id: data.id, proposal: data.content as AdProposal, creative }
 }

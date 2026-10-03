@@ -1,8 +1,10 @@
 import OpenAI from 'openai'
 
-// Image generations as OpenAI background responses: started in one request,
-// checked in later ones. The image model can take minutes; an Edge Function
-// that waited for it would be cut off by its time limit.
+// The one thing Spark still asks of OpenAI: generating images. Each runs as an
+// OpenAI background response, started in one request and checked in later
+// ones; the response's text model only hands the prompt to the image tool.
+// The image model can take minutes, and an Edge Function that waited for it
+// would be cut off by its time limit.
 
 export const IMAGE_MODEL = 'gpt-image-2.5-sunburst'
 const ORCHESTRATOR = 'gpt-5.5'

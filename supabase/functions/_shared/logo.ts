@@ -1,5 +1,6 @@
-import OpenAI from 'openai'
+import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { base64, judge } from './claude.ts'
 import { isPlatform, siteColors } from './branding.ts'
 import { PREVIEW_CRAWLER, scrape } from './firecrawl.ts'
 import { flattenForModels, isFlat } from './flatten.ts'
@@ -7,7 +8,7 @@ import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 
 // Every logo that enters the profile gives the brand its colours and is
 // recreated by gpt-image-2.5 as a square, high-resolution version of itself on
-// its original background, kept only if the vision model confirms it is still
+// its original background, kept only if Claude confirms it is still
 // the same logo. SVG logos, already sharp at any size, are only centred on a
 // square canvas.
 //
@@ -19,12 +20,9 @@ import { checkImageJob, dataUrl, startImageJob } from './image-jobs.ts'
 // the app (checkLogo): no request waits for the image model, and no pixels are
 // decoded in the function (its CPU budget is two seconds).
 
-const VISION_MODEL = 'gpt-5.5'
 // A 1024px recreation smaller than this is a flat, empty square.
 const BLANK_BYTES = 8_000
 const CANDIDATE_BYTES = 5_000_000
-
-const openai = new OpenAI() // OPENAI_API_KEY from the function's secrets
 
 /**
  * Asks the `logo` function to refresh the business's logo, in a request of
@@ -74,7 +72,7 @@ export async function refreshLogo(db: SupabaseClient, businessId: string) {
         colors = svgColors(await file.text())
       } else {
         const flat = await flattenForModels(new Uint8Array(await file.arrayBuffer()), file.type || 'image/png')
-        colors = await imageColors(dataUrl(flat.type, flat.bytes), flat.background)
+        colors = await imageColors(flat, flat.background)
       }
       // A logo of one or two colours (a black wordmark) leaves room: the site's colours complete the palette.
       colors = withSiteColors(colors, (brand.site_colors as Record<string, string> | null) ?? (await readSiteColors(db, businessId)))
@@ -319,41 +317,30 @@ const REDRAW = [
   "Keep the background exactly as it is in the image: the same solid colour. Extend it to fill the square, with the logo centred and even padding.",
 ].join(' ')
 
-/** Whether the recreated logo is still the same logo, as the vision model sees it. */
+/** Whether the recreated logo is still the same logo, as Claude sees it. */
 async function sameLogo(original: Uint8Array, candidate: Uint8Array): Promise<{ same: boolean; difference: string }> {
-  const response = await openai.responses.create({
-    model: VISION_MODEL,
-    reasoning: { effort: 'low' },
-    input: [
+  return await judge<{ same: boolean; difference: string }>(
+    [
+      { type: 'text', text: 'Image 1, the original logo:' },
+      imageBlock(original[0] === 0xff ? 'image/jpeg' : 'image/png', original),
+      { type: 'text', text: 'Image 2, a recreation:' },
+      imageBlock('image/png', candidate),
       {
-        role: 'user',
-        content: [
-          { type: 'input_text', text: 'Image 1, the original logo:' },
-          { type: 'input_image', image_url: dataUrl(original[0] === 0xff ? 'image/jpeg' : 'image/png', original), detail: 'high' },
-          { type: 'input_text', text: 'Image 2, a recreation:' },
-          { type: 'input_image', image_url: dataUrl('image/png', candidate), detail: 'high' },
-          {
-            type: 'input_text',
-            text: 'Is image 2 the same logo as image 1, faithfully recreated? It must read the same words spelled the same, keep the same symbol or mark, the same colours and the same background colour. Differences that come with a recreation are fine: sharper edges, slightly different line weight or letter spacing, more or less empty space around it. Answer no only if it is a different logo: a changed or misspelled word, a different or missing symbol, different colours, a different background, or added outlines, shadows or decorations.',
-          },
-        ],
+        type: 'text',
+        text: 'Is image 2 the same logo as image 1, faithfully recreated? It must read the same words spelled the same, keep the same symbol or mark, the same colours and the same background colour. Differences that come with a recreation are fine: sharper edges, slightly different line weight or letter spacing, more or less empty space around it. Answer no only if it is a different logo: a changed or misspelled word, a different or missing symbol, different colours, a different background, or added outlines, shadows or decorations. Give the difference in one sentence (empty if none).',
       },
     ],
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'same_logo',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: { same: { type: 'boolean' }, difference: { type: 'string' } },
-          required: ['same', 'difference'],
-          additionalProperties: false,
-        },
-      },
+    {
+      type: 'object',
+      properties: { same: { type: 'boolean' }, difference: { type: 'string' } },
+      required: ['same', 'difference'],
+      additionalProperties: false,
     },
-  })
-  return JSON.parse(response.output_text || '{"same":false,"difference":"no answer"}') as { same: boolean; difference: string }
+  )
+}
+
+function imageBlock(type: string, data: Uint8Array): Anthropic.Beta.BetaImageBlockParam {
+  return { type: 'image', source: { type: 'base64', media_type: type as 'image/png', data: base64(data) } }
 }
 
 /**
@@ -461,42 +448,27 @@ function svgColors(svg: string): string[] {
 }
 
 /**
- * The brand colours of a raster logo, as the vision model reads them. SVG and
- * HEIC are not readable. `background` is the one laid under a transparent
- * logo: not a brand colour.
+ * The brand colours of a raster logo, as Claude reads them. SVG and HEIC are
+ * not readable. `background` is the one laid under a transparent logo: not a
+ * brand colour.
  */
-async function imageColors(image: string, background?: string): Promise<string[]> {
-  const response = await openai.responses.create({
-    model: VISION_MODEL,
-    reasoning: { effort: 'low' },
-    input: [
+async function imageColors(image: { type: string; bytes: Uint8Array }, background?: string): Promise<string[]> {
+  const parsed = await judge<{ colors: string[] }>(
+    [
+      imageBlock(image.type, image.bytes),
       {
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: background
-              ? `List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. The logo has a transparent background, shown here on ${background}: that background is not a brand colour.`
-              : 'List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. A solid coloured background is part of the brand and counts; ignore only a plain white or transparent background.',
-          },
-          { type: 'input_image', image_url: image, detail: 'high' },
-        ],
+        type: 'text',
+        text: background
+          ? `List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. The logo has a transparent background, shown here on ${background}: that background is not a brand colour.`
+          : 'List the brand colours of this logo, most prominent first, as #RRGGBB, at most three. A solid coloured background is part of the brand and counts; ignore only a plain white or transparent background.',
       },
     ],
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'logo_colors',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: { colors: { type: 'array', items: { type: 'string' } } },
-          required: ['colors'],
-          additionalProperties: false,
-        },
-      },
+    {
+      type: 'object',
+      properties: { colors: { type: 'array', items: { type: 'string' } } },
+      required: ['colors'],
+      additionalProperties: false,
     },
-  })
-  const parsed = JSON.parse(response.output_text || '{"colors":[]}') as { colors: string[] }
+  )
   return parsed.colors.filter((hex) => /^#[0-9a-f]{6}$/i.test(hex)).map((hex) => hex.toUpperCase())
 }

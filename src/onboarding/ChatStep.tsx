@@ -34,30 +34,26 @@ import {
 } from '@hugeicons/core-free-icons'
 import {
   askAgent,
-  checkImport,
+  checkAdImages,
   checkLogoJob,
   createBusiness,
+  loadAds,
   loadHistory,
-  loadLatestProposal,
   loadProfile,
-  requestCreative,
-  requestProposal,
-  startImport,
   uploadAttachment,
-  type AdProposal,
+  type Ad,
+  type AgentEntry,
   type AgentTurn,
-  type ImportSource,
 } from './backend.ts'
-import { AdPreview, type CreativeState } from './AdPreview.tsx'
+import { AdCard } from './AdCard.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
-import { ImportMarker, type MarkerStatus } from './ImportMarker.tsx'
 import { ProfileEditor, type Editing } from './ProfileEditor.tsx'
 import { ProfilePanel, type SectionState } from './ProfilePanel.tsx'
 import { ACCEPT, documentIcon, documentKind, isAccepted } from './attachments.ts'
 import { hasSection, type Profile, type Section } from './profile.ts'
-import { EVENTS, WAITING, findLink } from './script.ts'
-import { displayUrl, type ImportRequest } from './types.ts'
+import { EVENTS, WAITING } from './script.ts'
+import type { ImportRequest } from './types.ts'
 
 /** A file picked in the composer, before or while it is sent. */
 interface PickedFile {
@@ -70,7 +66,7 @@ interface PickedFile {
 const MAX_FILES = 6
 
 type Entry =
-  | { id: number; from: 'agent'; text: string; quickReplies?: string[] }
+  | { id: number; from: 'agent'; text: string; quickReplies?: string[]; ads?: string[] }
   | {
       id: number
       from: 'user'
@@ -79,38 +75,26 @@ type Entry =
       /** Attachments of a message from an earlier session: their storage paths. */
       sentPaths?: string[]
     }
-  | { id: number; from: 'import'; job: string }
-  | {
-      id: number
-      from: 'proposal'
-      proposal?: AdProposal
-      proposalId?: string
-      creativeState?: CreativeState
-      failed?: boolean
-      /** The generated image: undefined while it is being made, null if it failed. */
-      creative?: string | null
-    }
 
-interface Job {
-  label: string
-  /** The business's own site, as opposed to an extra link from the chat. */
-  primary: boolean
-  status: MarkerStatus
-  pagesRead: number
-  pagesTotal: number
-  activity?: string
-  sources?: ImportSource[]
-}
-
-const POLL_MS = 3000
+/** How often a turn under way is moved on, and the ad images looked at. */
+const RESUME_MS = 1500
+const IMAGES_MS = 5000
 const AGENT_DOWN = 'Scusa, in questo momento non riesco a rispondere. Riprova tra poco.'
 let nextId = 0
 
-const say = (text: string, quickReplies?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies })
+const say = (text: string, quickReplies?: string[], ads?: string[]): Entry => ({ id: nextId++, from: 'agent', text, quickReplies, ads })
+
+/** A message from the server as the conversation shows it. */
+const fromServer = (entry: AgentEntry): Entry =>
+  entry.role === 'user'
+    ? { id: nextId++, from: 'user', text: entry.text, sentPaths: entry.attachments }
+    : say(entry.text, entry.choices?.length ? entry.choices : undefined, entry.ads?.length ? entry.ads : undefined)
 
 /**
  * The conversation of a workspace: a new one, started from the source the owner
  * chose (`request`), or an existing one picked up where it was left (`workspaceId`).
+ * Spark is one agent on the server: the app sends what the owner says, moves
+ * the agent's turn on while it works and shows what it writes.
  */
 export function ChatStep({
   request,
@@ -129,20 +113,20 @@ export function ChatStep({
   onSignOut?: () => void
 }) {
   const [entries, setEntries] = useState<Entry[]>(() => (request?.source === 'website' ? [say(WAITING)] : []))
-  const [jobs, setJobs] = useState<Record<string, Job>>({})
   const [profile, setProfile] = useState<Profile>({})
+  const [ads, setAds] = useState<Record<string, Ad>>({})
   const [draft, setDraft] = useState('')
   const [files, setFiles] = useState<PickedFile[]>([])
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [proposing, setProposing] = useState(false)
-  const proposed = useRef(false)
   const picker = useRef<HTMLInputElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
-  // Agent turns in flight: the typing indicator shows while any is.
-  const [pending, setPending] = useState(0)
+  // A turn of the agent's in flight: the typing indicator shows what it is doing.
+  const [working, setWorking] = useState(false)
+  const [activity, setActivity] = useState<string>()
   const end = useRef<HTMLDivElement>(null)
   const business = useRef<Promise<string> | null>(null)
-  const stopped = useRef(new Set<string>())
+  /** The last server message on screen: the agent sends what comes after it. */
+  const seen = useRef(0)
 
   /** The business row, created once, on first need. */
   function businessId() {
@@ -155,28 +139,20 @@ export function ChatStep({
     return business.current
   }
 
-  /** An existing workspace: its conversation so far, its profile and its latest ad. */
+  /** An existing workspace: its conversation so far, its profile, and a turn left under way. */
   async function resume() {
     try {
-      const [history, latest] = await Promise.all([loadHistory(await businessId()), loadLatestProposal(await businessId())])
-      const restored: Entry[] = history.map((item) =>
-        item.from === 'user'
-          ? { id: nextId++, from: 'user', text: item.text, sentPaths: item.attachments }
-          : say(item.text, item.choices.length ? item.choices : undefined),
-      )
-      // The ad was already proposed: shown again, never proposed by itself a second time.
-      proposed.current = !!latest
-      if (latest) {
-        restored.push({
-          id: nextId++,
-          from: 'proposal',
-          proposal: latest.proposal,
-          proposalId: latest.id,
-          creative: latest.creative,
-          creativeState: latest.creative ? 'done' : 'idle',
-        })
-      }
+      const id = await businessId()
+      const [history, all] = await Promise.all([loadHistory(id), loadAds(id)])
+      seen.current = history[history.length - 1]?.id ?? 0
+      setAds(Object.fromEntries(all.map((ad) => [ad.id, ad])))
+      const restored = history.map(fromServer)
+      // Ads made before they were shown in the chat (the first proposals): the latest one closes it.
+      const shown = new Set(history.flatMap((entry) => entry.ads ?? []))
+      const unseen = all.find((ad) => !shown.has(ad.id))
+      if (unseen) restored.push(say('La tua ultima inserzione:', undefined, [unseen.id]))
       setEntries(restored.length ? restored : [say('Ciao di nuovo! Da dove riprendiamo?')])
+      void follow({ resume: true })
     } catch (error) {
       console.error(error)
       setEntries([say(AGENT_DOWN)])
@@ -184,7 +160,7 @@ export function ChatStep({
     await refreshProfile()
   }
 
-  /** The panel reads the database: imports and the agent both write there. */
+  /** The panel reads the database: the agent writes there. */
   async function refreshProfile() {
     try {
       setProfile(await loadProfile(await businessId()))
@@ -193,40 +169,14 @@ export function ChatStep({
     }
   }
 
-  /**
-   * The first-ad proposal, as a message of Spark's. Replaces the one on screen
-   * when asked again, so "Rigenera" does not stack proposals.
-   */
-  async function propose() {
-    if (proposing) return
-    proposed.current = true
-    setProposing(true)
-    const id = nextId++
-    setEntries((list) => [...list.filter((entry) => entry.from !== 'proposal'), { id, from: 'proposal' }])
+  /** The ads the conversation shows, read again. */
+  async function refreshAds(ids: string[]) {
+    if (ids.length === 0) return
     try {
-      const { id: proposalId, proposal } = await requestProposal(await businessId())
-      // The image waits for the owner's approval of the campaign.
-      setEntries((list) =>
-        list.map((entry) => (entry.id === id ? { ...entry, proposal, proposalId, creativeState: 'idle' } : entry)),
-      )
+      const fresh = await loadAds(await businessId(), ids)
+      setAds((current) => ({ ...current, ...Object.fromEntries(fresh.map((ad) => [ad.id, ad])) }))
     } catch (error) {
       console.error(error)
-      setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, failed: true } : entry)))
-    } finally {
-      setProposing(false)
-    }
-  }
-
-  /** The owner approved the campaign: its image is made now. */
-  async function approve(entryId: number, proposalId: string) {
-    const update = (patch: Partial<Extract<Entry, { from: 'proposal' }>>) =>
-      setEntries((list) => list.map((entry) => (entry.id === entryId && entry.from === 'proposal' ? { ...entry, ...patch } : entry)))
-    update({ creativeState: 'making' })
-    try {
-      update({ creative: await requestCreative(proposalId), creativeState: 'done' })
-    } catch (error) {
-      console.error(error)
-      update({ creativeState: 'failed' })
     }
   }
 
@@ -248,104 +198,73 @@ export function ChatStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follows whether an image is pending only
   }, [imagesPending])
 
-  // Once the owner confirms the profile, Spark proposes their first ad by itself.
+  // The same for ad images: each moves only when someone looks.
+  const adImagesPending = Object.values(ads).some((ad) => ad.images.some((image) => image.status === 'running'))
   useEffect(() => {
-    if (profile.status === 'completed' && !proposed.current) void propose()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on completion
-  }, [profile.status])
+    if (!adImagesPending) return
+    const timer = setInterval(async () => {
+      try {
+        await checkAdImages(await businessId())
+      } catch (error) {
+        console.error(error)
+      }
+      void refreshAds(Object.values(ads).filter((ad) => ad.images.some((image) => image.status === 'running')).map((ad) => ad.id))
+    }, IMAGES_MS)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows whether an image is pending only
+  }, [adImagesPending])
 
-  /** One agent turn; its reply joins the conversation and the panel catches up. */
-  async function agentTurn(turn: AgentTurn) {
-    setPending((count) => count + 1)
+  /**
+   * One turn of the agent's: started with what the owner said (or the app
+   * reports), then moved on until it is over. Its messages join the
+   * conversation as they come; the owner's own are already on screen.
+   */
+  async function follow(turn: AgentTurn) {
+    setWorking(true)
     try {
-      const { reply, choices, actions } = await askAgent(await businessId(), turn)
-      if (reply) setEntries((list) => [...list, say(reply, choices.length ? choices : undefined)])
-      await refreshProfile()
-      // A new logo starts its recreation a few seconds later, in another
-      // function: look again then, so the panel picks the job up and follows it.
-      if (actions.some((action) => action.startsWith('set_logo'))) setTimeout(() => void refreshProfile(), 8000)
+      let next: AgentTurn = turn
+      for (;;) {
+        const state = await askAgent(await businessId(), next, seen.current)
+        const fresh = state.entries.filter((entry) => entry.id > seen.current)
+        if (fresh.length) {
+          seen.current = fresh[fresh.length - 1].id
+          const shown = fresh.filter((entry) => entry.role === 'assistant').map(fromServer)
+          if (shown.length) setEntries((list) => [...list, ...shown])
+          await Promise.all([refreshProfile(), refreshAds(fresh.flatMap((entry) => entry.ads ?? []))])
+        }
+        setActivity(state.activity)
+        if (state.status !== 'running') break
+        await new Promise((resolve) => setTimeout(resolve, RESUME_MS))
+        next = { resume: true }
+      }
     } catch (error) {
       console.error(error)
       setEntries((list) => [...list, say(AGENT_DOWN)])
     } finally {
-      setPending((count) => count - 1)
+      setWorking(false)
+      setActivity(undefined)
+      void refreshProfile()
     }
   }
 
-  /** Starts an import, shows its marker, follows it, then lets the agent report. */
-  async function runImport(url: string | undefined, label: string) {
-    const primary = url === undefined
-    const markerKey = `pending-${nextId}`
-    let job = markerKey
-    const update = (patch: Partial<Job>) => setJobs((current) => ({ ...current, [job]: { ...current[job], ...patch } }))
-    setJobs((current) => ({ ...current, [job]: { label, primary, status: 'starting', pagesRead: 0, pagesTotal: 0 } }))
-    setEntries((current) => [...current, { id: nextId++, from: 'import', job }])
-
-    const settle = async (status: 'done' | 'failed', summary = '') => {
-      await refreshProfile()
-      if (primary) await agentTurn({ event: status === 'done' ? EVENTS.siteDone(summary) : EVENTS.siteFailed })
-      else await agentTurn({ event: status === 'done' ? EVENTS.extraDone(url, summary) : EVENTS.extraFailed(url) })
-    }
-
-    try {
-      const started = await startImport(await businessId(), url)
-      // Re-key the marker from its placeholder to the real job id.
-      setJobs((current) => {
-        const { [markerKey]: placeholder, ...rest } = current
-        return { ...rest, [started]: { ...placeholder, status: 'running' } }
-      })
-      setEntries((current) =>
-        current.map((entry) => (entry.from === 'import' && entry.job === markerKey ? { ...entry, job: started } : entry)),
-      )
-      if (stopped.current.has(markerKey)) stopped.current.add(started)
-      job = started
-
-      while (!stopped.current.has(job)) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS))
-        if (stopped.current.has(job)) return
-        const progress = await checkImport(job)
-        update({
-          status: progress.status,
-          pagesRead: progress.pagesRead,
-          pagesTotal: progress.pagesTotal,
-          activity: progress.activity,
-          sources: progress.sources,
-        })
-        if (progress.status !== 'running') return settle(progress.status, progress.summary)
-      }
-    } catch (error) {
-      console.error(error)
-      if (stopped.current.has(job)) return
-      update({ status: 'failed' })
-      return settle('failed')
-    }
-  }
-
-  function skip(job: string) {
-    stopped.current.add(job)
-    setJobs((current) => ({ ...current, [job]: { ...current[job], status: 'skipped' } }))
-    if (jobs[job]?.primary) void refreshProfile().then(() => agentTurn({ event: EVENTS.siteSkipped }))
-  }
-
-  // Opening: read the site, or let the agent greet an owner without one. Once.
+  // Opening: the agent reads the site, or greets an owner without one. Once.
   const opened = useRef(false)
   useEffect(() => {
     if (opened.current) return
     opened.current = true
     if (workspaceId) void resume()
-    else if (request?.source === 'website') void runImport(undefined, displayUrl(request.target))
-    else void agentTurn({ event: EVENTS.noWebsite })
+    else if (request?.source === 'website') void follow({ event: EVENTS.website(request.target) })
+    else void follow({ event: EVENTS.noWebsite })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
   }, [])
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [entries, pending])
+  }, [entries, working])
 
   const sectionState = (section: Section): SectionState => {
     if (hasSection(profile, section)) return 'ready'
-    const siteRunning = Object.values(jobs).some((job) => job.primary && (job.status === 'starting' || job.status === 'running'))
-    return siteRunning && section !== 'calendar' ? 'loading' : 'empty'
+    return working && section !== 'calendar' && !profile.business?.name ? 'loading' : 'empty'
   }
 
   function pick(list: FileList | File[] | null) {
@@ -361,39 +280,35 @@ export function ChatStep({
 
   function send(text: string) {
     const message = text.trim()
-    if ((!message && files.length === 0) || pending > 0) return
+    if ((!message && files.length === 0) || working) return
     const attached = files
     setEntries((current) => [...current, { id: nextId++, from: 'user', text: message, files: attached }])
     setDraft('')
     if (composer.current) composer.current.style.height = ''
     setFiles([])
 
-    // Files go to the agent, whatever the text says.
-    if (attached.length > 0) {
-      void (async () => {
-        setPending((count) => count + 1)
-        try {
-          const id = await businessId()
-          const paths = await Promise.all(attached.map((item) => uploadAttachment(id, item.file)))
-          await agentTurn({ message, attachments: paths })
-        } catch (error) {
-          console.error(error)
-          setEntries((list) => [...list, say('Non sono riuscito a caricare i file. Riprova, magari con file più leggeri.')])
-        } finally {
-          setPending((count) => count - 1)
-        }
-      })()
+    if (attached.length === 0) {
+      void follow({ message })
       return
     }
-
-    // A link is a source for the app to read; the agent hears about it after.
-    const link = findLink(message)
-    if (link) void runImport(link, displayUrl(link))
-    else void agentTurn({ message })
+    void (async () => {
+      setWorking(true)
+      setActivity('Carico i file')
+      try {
+        const id = await businessId()
+        const paths = await Promise.all(attached.map((item) => uploadAttachment(id, item.file)))
+        await follow({ message, attachments: paths })
+      } catch (error) {
+        console.error(error)
+        setEntries((list) => [...list, say('Non sono riuscito a caricare i file. Riprova, magari con file più leggeri.')])
+        setWorking(false)
+        setActivity(undefined)
+      }
+    })()
   }
 
-  const thinking = pending > 0
-  const busy = thinking
+  const thinking = working
+  const busy = working
   const lastId = entries[entries.length - 1]?.id
   const panel = (titled: boolean) => (
     <ProfilePanel profile={profile} sectionState={sectionState} onEdit={setEditing} titled={titled} />
@@ -415,8 +330,8 @@ export function ChatStep({
           )}
           <Inline gap={3} align="center">
             {profile.business?.name && (
-              <Button variant="outline" size="sm" onClick={() => void propose()} disabled={proposing}>
-                Prima inserzione
+              <Button variant="outline" size="sm" onClick={() => send('Proponimi una campagna per acquisire nuovi clienti.')} disabled={busy}>
+                Nuova campagna
               </Button>
             )}
             <span className="profile-toggle">
@@ -458,59 +373,25 @@ export function ChatStep({
               ) : (
                 <Message key={entry.id}>
                   <MessageContent>
-                    {entry.from === 'proposal' ? (
-                      entry.proposal ? (
-                        <Stack gap={3}>
-                          <Bubble variant="ghost">
-                            <BubbleContent>
-                              Ecco la campagna che ti propongo per acquisire nuovi clienti, pensata su tutto quello che so della
-                              tua attività. Se ti convince approvala e creo l'immagine; se no, rigenerala.
-                            </BubbleContent>
-                          </Bubble>
-                          <AdPreview
-                            proposal={entry.proposal}
-                            creative={entry.creative}
-                            creativeState={entry.creativeState ?? 'idle'}
-                            profile={profile}
-                            onApprove={() => entry.proposalId && void approve(entry.id, entry.proposalId)}
-                            onRegenerate={() => void propose()}
-                            regenerating={proposing}
-                          />
-                        </Stack>
-                      ) : (
-                        <Bubble variant="ghost">
-                          <BubbleContent>
-                            {entry.failed ? (
-                              'Non sono riuscito a preparare la proposta. Riprova con “Prima inserzione”.'
-                            ) : (
-                              <Inline gap={2} align="center">
-                                <Spinner />
-                                Sto studiando la tua prima campagna: ci vuole qualche minuto…
-                              </Inline>
-                            )}
-                          </BubbleContent>
-                        </Bubble>
-                      )
-                    ) : entry.from === 'import' ? (
-                      <ImportMarker {...jobs[entry.job]} onSkip={() => skip(entry.job)} />
-                    ) : (
-                      <Stack gap={3}>
-                        <Bubble variant="ghost">
-                          <BubbleContent>
-                            <Markdown>{entry.text}</Markdown>
-                          </BubbleContent>
-                        </Bubble>
-                        {entry.quickReplies && entry.id === lastId && !thinking && (
-                          <Inline gap={2}>
-                            {entry.quickReplies.map((reply) => (
-                              <Button key={reply} variant="outline" size="sm" onClick={() => send(reply)}>
-                                {reply}
-                              </Button>
-                            ))}
-                          </Inline>
-                        )}
-                      </Stack>
-                    )}
+                    <Stack gap={3}>
+                      <Bubble variant="ghost">
+                        <BubbleContent>
+                          <Markdown>{entry.text}</Markdown>
+                        </BubbleContent>
+                      </Bubble>
+                      {entry.ads?.map((id) =>
+                        ads[id] ? <AdCard key={id} ad={ads[id]} profile={profile} onAsk={send} busy={busy} /> : null,
+                      )}
+                      {entry.quickReplies && entry.id === lastId && !thinking && (
+                        <Inline gap={2}>
+                          {entry.quickReplies.map((reply) => (
+                            <Button key={reply} variant="outline" size="sm" onClick={() => send(reply)}>
+                              {reply}
+                            </Button>
+                          ))}
+                        </Inline>
+                      )}
+                    </Stack>
                   </MessageContent>
                 </Message>
               ),
@@ -520,7 +401,10 @@ export function ChatStep({
                 <MessageContent>
                   <Bubble variant="ghost">
                     <BubbleContent>
-                      <Spinner aria-label="Spark sta scrivendo" />
+                      <Inline gap={2} align="center">
+                        <Spinner aria-label="Spark sta lavorando" />
+                        {activity && <span className="agent-activity">{activity}…</span>}
+                      </Inline>
                     </BubbleContent>
                   </Bubble>
                 </MessageContent>
