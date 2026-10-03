@@ -82,6 +82,8 @@ type Entry =
 
 /** How often a turn under way is moved on, and the ad images looked at. */
 const RESUME_MS = 1500
+/** One loop of the speaking avatar (speaking.svg, dur="6s"). */
+const SPEAKING_CYCLE_MS = 6000
 const IMAGES_MS = 5000
 const AGENT_DOWN = 'Scusa, in questo momento non riesco a rispondere. Riprova tra poco.'
 let nextId = 0
@@ -129,6 +131,21 @@ export function ChatStep({
   const [activity, setActivity] = useState<string>()
   /** Replies being written out word by word: Spark is speaking while there are any. */
   const [speaking, setSpeaking] = useState<number[]>([])
+  /** The avatar speaks until the end of the cycle the last word fell in, never cut mid-way. */
+  const [talking, setTalking] = useState(false)
+  const talkingSince = useRef(0)
+  useEffect(() => {
+    if (speaking.length > 0) {
+      if (!talking) talkingSince.current = Date.now()
+      setTalking(true)
+      return
+    }
+    if (!talking) return
+    const elapsed = Date.now() - talkingSince.current
+    const timer = setTimeout(() => setTalking(false), SPEAKING_CYCLE_MS - (elapsed % SPEAKING_CYCLE_MS))
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the replies being written only
+  }, [speaking.length])
   const end = useRef<HTMLDivElement>(null)
   const log = useRef<HTMLElement>(null)
   /** Whether the owner is at the bottom of the conversation: it then stays there as things load. */
@@ -408,7 +425,7 @@ export function ChatStep({
                   <Message key={entry.id}>
                     <MessageContent>
                       <Stack gap={3}>
-                        {!thinking && entry.id === lastId && <SparkAvatar svg={speaking.length ? speakingLoop : idleLoop} inline />}
+                        {!thinking && entry.id === lastId && <SparkAvatar svg={talking ? speakingLoop : idleLoop} inline />}
                         <Bubble variant="ghost">
                           <BubbleContent>
                             {entry.typed ? (
@@ -450,7 +467,7 @@ export function ChatStep({
           {thinking ? (
             <SparkAvatar svg={thinkingLoop} label="Spark sta lavorando" />
           ) : (
-            <SparkAvatar svg={speaking.length ? speakingLoop : idleLoop} />
+            <SparkAvatar svg={talking ? speakingLoop : idleLoop} />
           )}
         </div>
 
