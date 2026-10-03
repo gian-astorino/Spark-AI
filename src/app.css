@@ -662,6 +662,17 @@ h6 {
   background: var(--background);
 }
 
+/* On a phone the previews are smaller: the next one peeks in. */
+@media (max-width: 639px) {
+  .ad-carousel > .ad-card {
+    width: min(15rem, 72%);
+  }
+
+  .ad-card {
+    max-width: 15rem;
+  }
+}
+
 .ad-head {
   display: flex;
   align-items: center;
