@@ -126,6 +126,11 @@ export function ChatStep({
   const [working, setWorking] = useState(false)
   const [activity, setActivity] = useState<string>()
   const end = useRef<HTMLDivElement>(null)
+  const log = useRef<HTMLElement>(null)
+  /** Whether the owner is at the bottom of the conversation: it then stays there as things load. */
+  const atBottom = useRef(true)
+  /** The first time there is something to show, it is shown from the bottom at once. */
+  const arrived = useRef(false)
   const business = useRef<Promise<string> | null>(null)
   /** The last server message on screen: the agent sends what comes after it. */
   const seen = useRef(0)
@@ -264,8 +269,23 @@ export function ChatStep({
   }, [])
 
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    if (entries.length === 0) return
+    end.current?.scrollIntoView({ behavior: arrived.current ? 'smooth' : 'auto', block: 'end' })
+    arrived.current = true
+    atBottom.current = true
   }, [entries, working])
+
+  // Images and ad cards grow after they load: whoever is at the bottom stays there.
+  useEffect(() => {
+    const element = log.current
+    const content = element?.firstElementChild
+    if (!element || !content) return
+    const observer = new ResizeObserver(() => {
+      if (atBottom.current) element.scrollTop = element.scrollHeight
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [])
 
   const sectionState = (section: Section): SectionState => {
     if (hasSection(profile, section)) return 'ready'
@@ -354,7 +374,14 @@ export function ChatStep({
           </Inline>
         </header>
 
-        <main className="chat-log">
+        <main
+          className="chat-log"
+          ref={log}
+          onScroll={(event) => {
+            const element = event.currentTarget
+            atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80
+          }}
+        >
           <MessageGroup>
             {entries.map((entry) =>
               entry.from === 'user' ? (
