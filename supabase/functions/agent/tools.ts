@@ -141,7 +141,7 @@ const KERNEL: ToolDef[] = [
   {
     name: 'show_ads',
     description:
-      'Show ads made earlier under your reply, next to the ones of this turn (to compare them, or when you talk about them).',
+      'Show ads made earlier under your reply, next to the ones of this turn. Only when the owner asks to see them again or to compare them: they are already in the chat where they were made.',
     input_schema: {
       type: 'object',
       properties: { ad_ids: { type: 'array', items: { type: 'string' } } },
