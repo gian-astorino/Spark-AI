@@ -570,7 +570,7 @@ export function ChatStep({
                 <textarea
                   className="composer-input"
                   aria-label="Messaggio per Spark"
-                  placeholder="Rispondi a Spark, oppure allega un listino, il logo, delle foto…"
+                  placeholder="Scrivi a Spark…"
                   value={draft}
                   rows={1}
                   onChange={(event) => {
