@@ -814,9 +814,9 @@ img.ad-visual {
   }
 }
 
-/* Spark's avatar beside the conversation, at its bottom: outside the part
-   that scrolls, so the messages move and it stays. Where the conversation
-   has no margin for it, the messages make room. */
+/* Spark's avatar in the conversation's own column, at its left and its
+   bottom: the messages make room for it and scroll, it stays (it sits outside
+   the part that scrolls). */
 .chat {
   container: chat-pane / inline-size;
 }
@@ -829,12 +829,12 @@ img.ad-visual {
 
 .chat-body > .chat-log {
   min-height: 0;
-  padding-left: 3.75rem;
+  padding-left: calc(max(1rem, (100% - 44rem) / 2) + 3rem);
 }
 
 .spark-avatar {
   position: absolute;
-  left: 1rem;
+  left: max(1rem, calc((100% - 44rem) / 2));
   bottom: 0.75rem;
   width: 2.25rem;
   height: 2.25rem;
@@ -849,11 +849,10 @@ img.ad-visual {
 
 @container chat-pane (min-width: 52rem) {
   .chat-body > .chat-log {
-    padding-left: max(1rem, calc((100% - 44rem) / 2));
+    padding-left: calc(max(1rem, (100% - 44rem) / 2) + 3.5rem);
   }
 
   .spark-avatar {
-    left: calc((100% - 44rem) / 2 - 3.5rem);
     width: 40px;
     height: 40px;
   }
