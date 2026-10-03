@@ -20,7 +20,6 @@ import {
   Message,
   MessageContent,
   MessageGroup,
-  Spinner,
   Stack,
 } from '@skyground-media/pipelean-design-system'
 import {
@@ -47,6 +46,8 @@ import {
   type AgentTurn,
 } from './backend.ts'
 import { AdCard } from './AdCard.tsx'
+// Inline, so its strokes take the text colour (currentColor) and its animations run.
+import thinkingLoop from './thinking.svg?raw'
 import { Markdown } from './Markdown.tsx'
 import { Icon } from './Icon.tsx'
 import { ProfileEditor, type Editing } from './ProfileEditor.tsx'
@@ -394,7 +395,7 @@ export function ChatStep({
                   <Bubble variant="ghost">
                     <BubbleContent>
                       <Inline gap={2} align="center">
-                        <Spinner aria-label="Spark sta lavorando" />
+                        <span className="thinking" role="img" aria-label="Spark sta lavorando" dangerouslySetInnerHTML={{ __html: thinkingLoop }} />
                         <span className="agent-activity">{activity ?? 'Sto pensando'}…</span>
                       </Inline>
                     </BubbleContent>
